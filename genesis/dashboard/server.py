@@ -102,8 +102,8 @@ class DashboardServer:
             
             # 6. Brain Daemon Threads
             threads = {}
-            if hasattr(mind, "daemon") and mind.daemon:
-                for name, t in mind.daemon._threads.items():
+            if hasattr(mind, "_brain") and mind._brain:
+                for name, t in mind._brain._threads.items():
                     threads[name] = {"ticks": t._tick_count, "errors": t._errors}
             state["threads"] = threads
             

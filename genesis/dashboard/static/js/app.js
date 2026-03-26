@@ -6,6 +6,7 @@ let drivesChart = null;
 // UI Elements
 const phaseBadge = document.getElementById('phase-badge');
 const threadsContainer = document.getElementById('threads-container');
+const sensesContainer = document.getElementById('senses-container');
 const wmContainer = document.getElementById('wm-container');
 const wmUsage = document.getElementById('wm-usage');
 const wmCapacity = document.getElementById('wm-capacity');
@@ -126,6 +127,24 @@ function updateUI(state) {
                 </div>
             `;
         }
+    }
+
+    // Senses
+    if (state.senses && sensesContainer) {
+        sensesContainer.innerHTML = `
+            <div class="thread-card">
+                <span class="thread-name">Vision (Camera)</span>
+                <span class="thread-ticks" style="color:var(--accent)">${state.senses.vision}</span>
+            </div>
+            <div class="thread-card">
+                <span class="thread-name">Auditory (Mic)</span>
+                <span class="thread-ticks" style="color:var(--accent)">${state.senses.auditory}</span>
+            </div>
+            <div class="thread-card" style="grid-column: 1 / -1;">
+                <span class="thread-name">Proprioception (Body)</span>
+                <span class="thread-ticks">Time: ${state.senses.proprioception.time_of_day} | Fatigue: ${state.senses.proprioception.fatigue.toFixed(2)} | Uptime: ${state.senses.proprioception.uptime_hours.toFixed(1)}h</span>
+            </div>
+        `;
     }
 
     // Working Memory
