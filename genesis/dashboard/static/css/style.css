@@ -198,6 +198,8 @@ h2 {
     align-items: center;
     gap: 0.5rem;
     margin-bottom: 1.25rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    padding-bottom: 0.75rem;
 }
 .panel-header h2 { margin-bottom: 0; }
 
@@ -213,6 +215,8 @@ h2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
+    min-height: 120px;
+    align-content: start;
 }
 .thread-card {
     background: rgba(0,0,0,0.3);
@@ -231,6 +235,7 @@ h2 {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    min-height: 200px;
 }
 .wm-slot {
     background: rgba(255,255,255,0.03);
@@ -247,7 +252,7 @@ h2 {
 
 /* Activity Stream */
 .stream-container {
-    max-height: 250px;
+    height: 250px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -318,7 +323,7 @@ h2 {
     width: 0%;
     transition: width 0.3s ease;
 }
-.chem-val { font-size: 0.75rem; font-family: 'JetBrains Mono'; text-align: right; }
+.chem-val { font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; text-align: right; }
 
 #chem-dopamine { background: var(--dopamine); box-shadow: 0 0 8px var(--dopamine); }
 #chem-cortisol { background: var(--cortisol); box-shadow: 0 0 8px var(--cortisol); }

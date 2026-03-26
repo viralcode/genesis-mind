@@ -20,32 +20,92 @@ let nodesData = new vis.DataSet([]);
 let edgesData = new vis.DataSet([]);
 const networkContainer = document.getElementById('network-canvas');
 
-const networkOptions = {
+const brainOptions = {
     nodes: {
         shape: 'dot',
-        size: 20,
-        font: { size: 14, color: '#f0f0f5', face: 'Inter', strokeWidth: 3, strokeColor: '#0a0a0c' },
-        borderWidth: 2,
-        color: {
-            background: 'rgba(79, 195, 247, 0.2)',
-            border: '#4fc3f7',
-            highlight: { background: '#4fc3f7', border: '#fff' }
-        }
+        borderWidth: 0,
+        color: { background: 'rgba(79, 195, 247, 0.2)' }
     },
     edges: {
-        width: 1.5,
-        color: { color: 'rgba(255,255,255,0.15)', highlight: '#4fc3f7' },
-        smooth: { type: 'continuous' }
+        width: 1,
+        color: 'rgba(255,255,255,0.08)',
+        smooth: false
     },
-    physics: {
-        barnesHut: { gravitationalConstant: -4000, centralGravity: 0.1, springLength: 150, springConstant: 0.02 }
-    }
+    groups: {
+        input: { size: 14, color: {background: 'rgba(239, 83, 80, 0.7)'} },
+        hidden: { size: 8, color: {background: 'rgba(79, 195, 247, 0.1)'} },
+        output: { size: 14, color: {background: 'rgba(255, 213, 79, 0.7)'} }
+    },
+    physics: false, // Freeze physics to keep architecture rigid
+    interaction: { zoomView: true, dragView: true }
 };
 
 function initNetwork() {
-    if (networkContainer && !network) {
-        network = new vis.Network(networkContainer, {nodes: nodesData, edges: edgesData}, networkOptions);
+    if (!networkContainer) return;
+    
+    // Build the 144-node Neural Architecture
+    let nodes = [];
+    let edges = [];
+    
+    // 1. Sensory Input Layer (8 nodes)
+    for (let i = 0; i < 8; i++) {
+        nodes.push({id: `in_${i}`, label: '', group: 'input', x: -400, y: (i * 50) - 175, title: `Sensory/Limbic Node ${i}`});
     }
+    
+    // 2. Hidden State (128 nodes, 16x8 grid)
+    let hIdx = 0;
+    for (let col = 0; col < 16; col++) {
+        for (let row = 0; row < 8; row++) {
+            nodes.push({
+                id: `h_${hIdx}`, 
+                label: '', 
+                group: 'hidden', 
+                x: -200 + (col * 25), 
+                y: (row * 30) - 105,
+                title: `Hidden Activation (GRU Unit ${hIdx})`
+            });
+            hIdx++;
+        }
+    }
+    
+    // 3. World Model / Output (8 nodes)
+    for (let i = 0; i < 8; i++) {
+        nodes.push({id: `out_${i}`, label: '', group: 'output', x: 250, y: (i * 50) - 175, title: `World Model Prediction Node ${i}`});
+    }
+
+    // Wiring Input -> Hidden
+    for (let i = 0; i < 8; i++) {
+        for (let col = 0; col < 2; col++) {
+            for (let row = 0; row < 8; row++) {
+                if (Math.random() > 0.6) edges.push({from: `in_${i}`, to: `h_${col*8 + row}`});
+            }
+        }
+    }
+    // Wiring Hidden -> Hidden (Dense-like)
+    for (let col = 0; col < 15; col++) {
+        for (let row = 0; row < 8; row++) {
+            if (Math.random() > 0.4) {
+                // connect to next column
+                edges.push({from: `h_${col*8 + row}`, to: `h_${(col+1)*8 + Math.floor(Math.random()*8)}`});
+            }
+        }
+    }
+    // Wiring Hidden -> Output
+    for (let i = 0; i < 8; i++) {
+        for (let col = 14; col < 16; col++) {
+            for (let row = 0; row < 8; row++) {
+                if (Math.random() > 0.6) edges.push({from: `h_${col*8 + row}`, to: `out_${i}`});
+            }
+        }
+    }
+
+    nodesData = new vis.DataSet(nodes);
+    edgesData = new vis.DataSet(edges);
+    
+    network = new vis.Network(networkContainer, {nodes: nodesData, edges: edgesData}, brainOptions);
+    
+    // Center it nicely after spawn
+    setTimeout(() => network.fit({animation: {duration: 1000, easingFunction: 'easeInOutQuad'}}), 500);
 }
 
 // Stats Elements
@@ -120,15 +180,15 @@ function initCharts() {
         drivesChart = new Chart(ctxDrives, {
             type: 'bar',
             data: {
-                labels: ['Fatigue', 'Hunger', 'Fear', 'Novelty', 'Curiosity', 'Social', 'Play', 'Meaning'],
+                labels: ['Sleep', 'Comfort', 'Social', 'Belonging', 'Curiosity', 'Novelty', 'Mastery', 'Autonomy'],
                 datasets: [{
                     label: 'Drive Activation',
                     data: [0,0,0,0,0,0,0,0],
                     backgroundColor: [
                         '#ef5350', '#ef5350', // Survival
-                        '#ffd54f', '#ffd54f', // Security 
-                        '#4fc3f7', '#4fc3f7', '#4fc3f7', // Social/Cognitive
-                        '#ba68c8'             // Transcendence
+                        '#ffd54f', '#ffd54f', // Social (Tier 2)
+                        '#4fc3f7', '#4fc3f7', '#4fc3f7', // Cognitive (Tier 3)
+                        '#ba68c8'             // Self (Tier 4)
                     ],
                     borderRadius: 4
                 }]
@@ -218,20 +278,38 @@ function updateUI(state) {
         }
     }
 
-    // Network Graph
-    if (state.network_graph) {
-        if (nodeCount) nodeCount.textContent = state.network_graph.nodes.length;
+    // Network Graph Real-Time Neural Activations update
+    if (network && state.neural && state.neural.layer3_personality) {
+        if (nodeCount) nodeCount.textContent = 144; // Total nodes simulated
         
-        // Update nodes and edges dynamically
-        nodesData.update(state.network_graph.nodes);
+        const hs = state.neural.layer3_personality.hidden_state_activation || [];
+        const loss = state.neural.layer4_world_model.last_loss || 0;
+        let updates = [];
         
-        // Edges need a unique ID to be updated cleanly without duplicating
-        const formattedEdges = state.network_graph.edges.map(e => ({
-            id: `${e.from}-${e.to}`,
-            from: e.from,
-            to: e.to
-        }));
-        edgesData.update(formattedEdges);
+        // Flash hidden layer neurons based on live model hidden state
+        for (let i = 0; i < hs.length && i < 128; i++) {
+            const val = hs[i];
+            const intensity = Math.min(Math.max((val + 1) / 2, 0.1), 1);
+            updates.push({
+                id: `h_${i}`,
+                color: { background: `rgba(79, 195, 247, ${intensity})` },
+                size: 6 + (intensity * 6) // pulse size slightly
+            });
+        }
+        
+        // Pulse Sensory and World Model randomly or based on systemic noise
+        const inputNoise = Math.random() * 0.4 + 0.3;
+        for (let i=0; i<8; i++) {
+            updates.push({id: `in_${i}`, size: 12 + (Math.random() * 6), color: {background: `rgba(239, 83, 80, ${inputNoise + (Math.random()*0.3)})`}});
+            
+            // Output node flashes based on World Model prediction loss 
+            const outIntensity = Math.min(0.2 + (loss * 10), 0.9) + (Math.random()*0.2);
+            updates.push({id: `out_${i}`, size: 12 + (Math.random() * 4), color: {background: `rgba(255, 213, 79, ${outIntensity})`}});
+        }
+        
+        if (nodesData.get('h_0')) {
+             nodesData.update(updates);
+        }
     }
 
     // Working Memory
@@ -308,14 +386,14 @@ function updateUI(state) {
     // Drives Bar Chart Update
     if (state.drives && drivesChart) {
         drivesChart.data.datasets[0].data = [
-            state.drives.fatigue?.level || 0,
-            state.drives.hunger?.level || 0,
-            state.drives.fear?.level || 0,
-            state.drives.novelty?.level || 0,
-            state.drives.curiosity?.level || 0,
+            state.drives.sleep?.level || 0,
+            state.drives.comfort?.level || 0,
             state.drives.social?.level || 0,
-            state.drives.play?.level || 0,
-            state.drives.meaning?.level || 0,
+            state.drives.belonging?.level || 0,
+            state.drives.curiosity?.level || 0,
+            state.drives.novelty?.level || 0,
+            state.drives.mastery?.level || 0,
+            state.drives.autonomy?.level || 0,
         ];
         drivesChart.update('none');
     }
