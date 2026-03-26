@@ -452,6 +452,11 @@ function updateUI(state) {
         if (conceptCount) conceptCount.textContent = state.neural.layer2_binding.learned_concepts.toLocaleString();
         if (expCount) expCount.textContent = state.neural.layer3_personality.total_experiences.toLocaleString();
         if (surpriseLoss) surpriseLoss.textContent = state.neural.layer4_world_model.last_loss.toFixed(4);
+        
+        const totalParamsEl = document.getElementById('total-params');
+        if (totalParamsEl && state.neural.total_parameters) {
+            totalParamsEl.textContent = state.neural.total_parameters.toLocaleString() + " Params";
+        }
 
         // Update hidden state cells
         if (hiddenStateContainer) {
