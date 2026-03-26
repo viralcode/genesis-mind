@@ -183,11 +183,36 @@ class DashboardServer:
                 "replay_buffer": len(mind.subconscious.replay_buffer) if hasattr(mind.subconscious, 'replay_buffer') else 0
             }
             
-            # 10. Language & ToM
+            # 10. Language Acquisition (V6)
+            language_data = {
+                "grammar_mode": "unknown",
+                "babbling": {},
+                "joint_attention": {},
+                "ngram": {},
+            }
+            try:
+                language_data["grammar_mode"] = mind.grammar.mode
+                if hasattr(mind, 'babbling_engine'):
+                    language_data["babbling"] = mind.babbling_engine.get_status()
+                if hasattr(mind, 'joint_attention'):
+                    language_data["joint_attention"] = mind.joint_attention.get_status()
+                language_data["ngram"] = mind.grammar.get_ngram_stats()
+            except Exception as e:
+                logger.error("Failed to build language data: %s", e)
+            state["language_acquisition"] = language_data
+
+            # 11. Theory of Mind
             state["cognition"] = {
                 "theory_of_mind": mind.theory_of_mind.is_active,
-                "known_words": list(mind.grammar.ngram_model.keys())[:10] if hasattr(mind.grammar, 'ngram_model') else []
             }
+
+            # 12. Acoustic Neural Pipeline (V7)
+            if hasattr(mind, 'sensorimotor'):
+                try:
+                    state["acoustic_pipeline"] = mind.sensorimotor.get_stats()
+                except Exception as e:
+                    logger.error("Failed to get acoustic stats: %s", e)
+                    state["acoustic_pipeline"] = {}
 
         except Exception as e:
             import traceback

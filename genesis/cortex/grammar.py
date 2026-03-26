@@ -274,20 +274,54 @@ class GrammarEngine:
         self._ngram_model.learn_from_speech(text)
 
     def generate_response(self, context: str = "", reasoning_engine=None,
-                          identity: str = "", moral_context: str = "",
-                          phase: int = 0, phase_name: str = "Newborn",
-                          memories: list = None) -> str:
+                           identity: str = "", moral_context: str = "",
+                           phase: int = 0, phase_name: str = "Newborn",
+                           memories: list = None,
+                           babbling_engine=None,
+                           joint_attention=None) -> str:
         """
         Generate a response using the active grammar mode.
 
         In LLM mode: delegates to the ReasoningEngine.
-        In Tabula Rasa mode: uses the n-gram model exclusively.
+        In Tabula Rasa mode: uses developmental phase gating:
+            Phase 0 (Newborn):  Pure babbling (random phonemes)
+            Phase 1 (Infant):   Single words from joint attention vocab
+            Phase 2 (Toddler):  2-3 word n-gram phrases
+            Phase 3+ (Child):   Full n-gram generation, LLM unlock
         """
         if self._mode == "tabula_rasa":
-            # Pure n-gram generation — no pretrained knowledge
+            # Phase 0: Pure babbling — no words, just sounds
+            if phase <= 0 and babbling_engine is not None:
+                text, _ = babbling_engine.babble(syllable_count=random.randint(1, 3))
+                logger.info("Phase 0 babble: '%s'", text)
+                return text
+
+            # Phase 1: Single words from learned vocabulary
+            if phase == 1:
+                # Try joint attention vocabulary first
+                if joint_attention is not None:
+                    vocab = joint_attention.get_vocabulary()
+                    if vocab:
+                        word = random.choice(vocab)
+                        logger.info("Phase 1 word (joint attention): '%s'", word)
+                        return word
+
+                # Fall back to n-gram unigrams
+                if self._ngram_model.get_vocab_size() > 0:
+                    response = self._ngram_model.generate(max_words=1, temperature=0.8)
+                    logger.info("Phase 1 word (n-gram): '%s'", response)
+                    return response
+
+                # Still no words learned — babble
+                if babbling_engine is not None:
+                    text, _ = babbling_engine.babble(syllable_count=1)
+                    return text
+                return "..."
+
+            # Phase 2+: N-gram generation with increasing complexity
             max_words = min(3 + phase * 3, 30)
             response = self._ngram_model.generate(max_words=max_words, temperature=0.8)
-            logger.info("Tabula Rasa response: '%s'", response)
+            logger.info("Tabula Rasa response (phase %d): '%s'", phase, response)
             return response
 
         # LLM mode — delegate to reasoning engine

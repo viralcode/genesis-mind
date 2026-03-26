@@ -54,6 +54,9 @@ from genesis.cortex.theory_of_mind import TheoryOfMind
 from genesis.cortex.metacognition import Metacognition
 from genesis.cortex.play import PlayBehavior
 from genesis.senses.motor import SimulatedMotor
+from genesis.senses.babbling import BabblingEngine
+from genesis.cortex.joint_attention import JointAttentionEngine
+from genesis.neural.sensorimotor import SensorimotorLoop
 
 logger = logging.getLogger("genesis.main")
 
@@ -119,6 +122,18 @@ class GenesisMind:
             weights_dir=GENESIS_HOME / "neural_weights",
         )
 
+        # --- V7: Sensorimotor Loop (Pure Neural Acoustic Pipeline) ---
+        self.sensorimotor = SensorimotorLoop(
+            weights_dir=GENESIS_HOME / "acoustic_weights",
+            sample_rate=self.config.acoustic.sample_rate,
+            n_mels=self.config.acoustic.n_mels,
+            latent_dim=self.config.acoustic.latent_dim,
+            codebook_size=self.config.acoustic.codebook_size,
+            lm_layers=self.config.acoustic.lm_layers,
+            lm_heads=self.config.acoustic.lm_heads,
+            lm_embd=self.config.acoustic.lm_embd,
+        )
+
         # --- Initialize Growth ---
         self.development = DevelopmentTracker(storage_path=GENESIS_HOME / "development_state.json")
         self.sleep_cycle = SleepCycle(
@@ -135,6 +150,20 @@ class GenesisMind:
             rate=self.config.voice.rate,
             volume=self.config.voice.volume,
         )
+
+        # --- V6: Babbling Engine (Acoustic Language Acquisition) ---
+        self.babbling_engine = BabblingEngine(
+            storage_path=MEMORY_DIR / "vocal_repertoire.json",
+        )
+
+        # --- V6: Joint Attention Engine (Cross-Modal Binding) ---
+        self.joint_attention = JointAttentionEngine(
+            storage_path=MEMORY_DIR / "joint_attention.json",
+        )
+
+        # Wire babbling into voice for phase-gated vocalization
+        self.voice.set_babbling_engine(self.babbling_engine)
+        self.voice.set_phase(self.development.current_phase)
 
         # --- V4: Proprioception (Internal Body Sense) ---
         self.proprioception = Proprioception()
@@ -298,6 +327,9 @@ class GenesisMind:
 
         # Grammar: learn from the teaching interaction
         self.grammar.learn_from_speech(f"this is {word}")
+
+        # V6: Joint Attention — bind the taught concept to the word
+        self.joint_attention.bind(word, word)
 
         # V3: Neural cascade — train ALL subconscious networks on this experience
         # We now use the "Evolutionary Hardware" (CLIP + Text embeddings) as input
@@ -471,6 +503,8 @@ class GenesisMind:
             phase=self.development.current_phase,
             phase_name=self.development.current_phase_name,
             memories=memories,
+            babbling_engine=self.babbling_engine,
+            joint_attention=self.joint_attention,
         )
 
         # Evaluate emotional content
@@ -770,6 +804,8 @@ class GenesisMind:
             self._eyes.close()
         # Save the personality — the neural weights ARE the person
         self.subconscious.save_all()
+        # V7: Save the acoustic neural weights
+        self.sensorimotor.save_all()
         # V4: Stop the brain daemon
         if self._brain:
             self._brain.stop()
@@ -859,12 +895,17 @@ class GenesisMind:
         print("    brain                           — Brain daemon thread stats")
         print("    chemicals                       — Show neurochemical state")
         print("    drives                          — Show intrinsic motivations")
-        print("    voice on|off                    — Toggle voice")
-        print("    unanswered                      — Show burning questions")
-        print("    mode llm|tabula_rasa            — Switch grammar mode")
-        print("    sleep                           — Consolidate memories (4-phase)")
-        print("    introspect                      — Self-reflection")
-        print("    quit                            — Shut down")
+        print("    voice on|off                    -- Toggle voice")
+        print("    unanswered                      -- Show burning questions")
+        print("    mode llm|tabula_rasa            -- Switch grammar mode")
+        print("    babble                          -- Trigger a babble")
+        print("    bindings                        -- Show learned cross-modal bindings")
+        print("    vocab                           -- Show learned vocabulary")
+        print("    neural-speak                    -- Generate and play neural audio")
+        print("    neural-stats                    -- Show acoustic pipeline stats")
+        print("    sleep                           -- Consolidate memories (4-phase)")
+        print("    introspect                      -- Self-reflection")
+        print("    quit                            -- Shut down")
         print()
 
         while self._running:
@@ -997,6 +1038,64 @@ class GenesisMind:
                             print(f"    {name:18s} {state}  ticks: {info['ticks']:5d}  errors: {info['errors']}  interval: {info['interval']:.0f}s")
                     else:
                         print("  Genesis: Brain daemon not running.")
+
+                elif command == "babble":
+                    text, phonemes = self.babbling_engine.babble()
+                    print(f"  Genesis: *babbles* '{text}'")
+                    print(f"  (phonemes: {phonemes})")
+                    self.voice.speak_phonemes(phonemes)
+
+                elif command == "bindings":
+                    bindings = self.joint_attention.get_all_bindings_sorted()
+                    if not bindings:
+                        print("  Genesis: I have no cross-modal bindings yet.")
+                    else:
+                        print(f"  -- Cross-Modal Bindings ({len(bindings)}) --")
+                        for b in bindings[:20]:
+                            status = 'LEARNED' if b['learned'] else 'weak'
+                            print(f"    '{b['visual']}' <-> '{b['word']}' strength={b['strength']:.3f} x{b['co_occurrences']} [{status}]")
+
+                elif command == "vocab":
+                    vocab = self.joint_attention.get_vocabulary()
+                    ngram_stats = self.grammar.get_ngram_stats()
+                    babble_status = self.babbling_engine.get_status()
+                    print(f"  -- Language Acquisition Status --")
+                    print(f"    Grammar mode:       {self.grammar.mode}")
+                    print(f"    Learned vocabulary: {len(vocab)} words {vocab[:20]}")
+                    print(f"    N-gram vocab:       {ngram_stats['vocab_size']} words")
+                    print(f"    Sentences heard:    {ngram_stats['total_sentences_heard']}")
+                    print(f"    Babble repertoire:  {babble_status['repertoire_size']} units")
+                    print(f"    Total babbles:      {babble_status['total_babbles']}")
+                    print(f"    Reinforcements:     {babble_status['total_reinforcements']}")
+                    strongest = babble_status.get('strongest', [])
+                    if strongest:
+                        print(f"    Strongest babbles:")
+                        for s in strongest[:5]:
+                            concept = f" -> '{s['associated_concept']}' " if s['associated_concept'] else ""
+                            print(f"      '{s['speakable']}'{concept} strength={s['strength']:.3f}")
+
+                elif command == "neural-speak":
+                    print("  Genesis: *generating neural audio...*")
+                    waveform, tokens = self.sensorimotor.generate_spontaneous(
+                        max_tokens=30, temperature=0.9,
+                    )
+                    print(f"  Generated {len(tokens)} acoustic tokens → {len(waveform)} samples ({len(waveform)/16000:.2f}s)")
+                    print(f"  Tokens: {tokens[:15]}...")
+                    self.sensorimotor.vocoder.play(waveform)
+
+                elif command == "neural-stats":
+                    stats = self.sensorimotor.get_stats()
+                    print("  ── Pure Neural Acoustic Pipeline ──")
+                    print(f"    Total interactions: {stats['total_interactions']}")
+                    print(f"    Total params:      {stats['total_params']:,}")
+                    ac = stats['auditory_cortex']
+                    print(f"    Auditory Cortex:   {ac['params']:,} params, {ac['frames_processed']} frames")
+                    vq = stats['vq_codebook']
+                    print(f"    VQ Codebook:       {vq['codebook_size']} entries, {vq['active_codes']} active ({vq['codebook_utilization']*100:.1f}% util)")
+                    ab = stats['acoustic_brain']
+                    print(f"    Acoustic LM:       {ab['params']:,} params, {ab['total_sequences_heard']} seqs heard, loss={ab['avg_loss']:.4f}")
+                    vo = stats['vocoder']
+                    print(f"    Neural Vocoder:    {vo['params']:,} params, {vo['total_syntheses']} syntheses")
 
                 elif command == "quit" or command == "exit":
                     phase = self.development.current_phase

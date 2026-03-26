@@ -15,8 +15,11 @@ consciousness loop.
 """
 
 import logging
+import random
 import threading
-from typing import Optional
+from typing import List, Optional
+
+from genesis.senses.babbling import BabblingEngine, PHONEME_TO_SPEECH
 
 logger = logging.getLogger("genesis.senses.voice")
 
@@ -36,6 +39,8 @@ class Voice:
         self._muted = False
         self._engine = None
         self._lock = threading.Lock()
+        self._current_phase = 0  # Developmental phase gate
+        self._babbling_engine: Optional[BabblingEngine] = None
 
         if self._enabled:
             try:
@@ -51,20 +56,83 @@ class Voice:
         else:
             logger.info("Voice disabled by configuration")
 
+    def set_babbling_engine(self, engine: BabblingEngine):
+        """Connect the babbling engine for phase-gated vocalization."""
+        self._babbling_engine = engine
+
+    def set_phase(self, phase: int):
+        """Update the developmental phase for voice gating."""
+        self._current_phase = phase
+
     def say(self, text: str):
         """
         Speak the given text aloud.
 
-        Non-blocking — runs on a background thread so the consciousness
-        loop is never stalled waiting for speech to finish.
+        PHASE-GATED:
+        - Phase 0-1: Blocked. Redirects to babbling.
+        - Phase 2: Can speak single learned words only.
+        - Phase 3+: Full speech unlocked.
+
+        Non-blocking — runs on a background thread.
         """
         if not self._enabled or self._muted or self._engine is None:
             return
         if not text or not text.strip():
             return
 
+        # Phase gate: early phases can only babble
+        if self._current_phase <= 1:
+            # Redirect to babbling
+            self.babble_random()
+            return
+        elif self._current_phase == 2:
+            # Limit to short phrases (max 3 words)
+            words = text.split()
+            text = " ".join(words[:3])
+
         thread = threading.Thread(target=self._speak, args=(text,), daemon=True)
         thread.start()
+
+    def speak_phonemes(self, phonemes: List[str]):
+        """
+        Speak a sequence of phonemes using TTS approximation.
+
+        Converts IPA-like symbols to speakable text and vocalizes them.
+        This is how Genesis "babbles" — producing raw sounds without words.
+        """
+        if not self._enabled or self._muted or self._engine is None:
+            return
+
+        speakable_parts = []
+        for p in phonemes:
+            speakable_parts.append(PHONEME_TO_SPEECH.get(p, p))
+
+        text = " ".join(speakable_parts)
+        thread = threading.Thread(target=self._speak, args=(text,), daemon=True)
+        thread.start()
+
+    def babble_random(self):
+        """
+        Generate and speak a random babble.
+
+        Uses the BabblingEngine if available, otherwise produces
+        a simple random consonant-vowel pair.
+        """
+        if not self._enabled or self._muted or self._engine is None:
+            return
+
+        if self._babbling_engine:
+            text, phonemes = self._babbling_engine.babble()
+        else:
+            # Fallback: simple random CV babble
+            from genesis.senses.babbling import CONSONANTS, VOWELS
+            c = random.choice(CONSONANTS)
+            v = random.choice(VOWELS)
+            text = PHONEME_TO_SPEECH.get(c, c) + PHONEME_TO_SPEECH.get(v, v)
+
+        thread = threading.Thread(target=self._speak, args=(text,), daemon=True)
+        thread.start()
+        return text
 
     def _speak(self, text: str):
         """Internal blocking speech — runs on background thread."""

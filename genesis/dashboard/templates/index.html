@@ -161,6 +161,70 @@
                 </div>
                 
             </section>
+
+            <!-- Language Acquisition (V6) -->
+            <section class="glass-panel">
+                <div class="panel-header">
+                    <h2>LANGUAGE ACQUISITION</h2>
+                    <span class="capacity-tag" id="grammar-mode-tag">tabula_rasa</span>
+                </div>
+
+                <div class="neural-layer">
+                    <div class="layer-title">Vocabulary</div>
+                    <div class="layer-stat">Learned Words: <span class="mono" id="la-vocab-size">0</span></div>
+                    <div class="layer-stat">Words Heard: <span class="mono" id="la-words-heard">0</span></div>
+                    <div class="layer-stat">Sentences Heard: <span class="mono" id="la-sentences-heard">0</span></div>
+                </div>
+
+                <div class="neural-layer">
+                    <div class="layer-title">Acoustic Babbling</div>
+                    <div class="layer-stat">Repertoire: <span class="mono" id="la-repertoire">0</span> units</div>
+                    <div class="layer-stat">Total Babbles: <span class="mono" id="la-babbles">0</span></div>
+                    <div class="layer-stat">Reinforcements: <span class="mono" id="la-reinforcements">0</span></div>
+                    <div class="layer-stat">Last Babble: <span class="mono" id="la-last-babble">---</span></div>
+                </div>
+
+                <div class="neural-layer">
+                    <div class="layer-title">Cross-Modal Bindings</div>
+                    <div class="layer-stat">Total Bindings: <span class="mono" id="la-bindings">0</span></div>
+                    <div class="layer-stat">Learned: <span class="mono" id="la-learned">0</span></div>
+                    <div class="layer-stat">Permanent: <span class="mono" id="la-permanent">0</span></div>
+                </div>
+
+                <div id="la-strongest-container" style="margin-top: 0.5rem;"></div>
+            </section>
+
+            <!-- Acoustic Neural Pipeline (V7) -->
+            <section class="glass-panel">
+                <div class="panel-header">
+                    <h2>ACOUSTIC NEURAL PIPELINE</h2>
+                    <span class="capacity-tag" id="acoustic-params">0 Params</span>
+                </div>
+
+                <div class="neural-layer">
+                    <div class="layer-title">Auditory Cortex (Hearing)</div>
+                    <div class="layer-stat">Parameters: <span class="mono" id="ac-params">0</span></div>
+                    <div class="layer-stat">Frames Processed: <span class="mono" id="ac-frames">0</span></div>
+                </div>
+
+                <div class="neural-layer">
+                    <div class="layer-title">VQ Codebook (Neural Phonemes)</div>
+                    <div class="layer-stat">Active Codes: <span class="mono" id="vq-active">0</span> / 256</div>
+                    <div class="layer-stat">Utilization: <span class="mono" id="vq-util">0%</span></div>
+                </div>
+
+                <div class="neural-layer active-layer">
+                    <div class="layer-title">Acoustic Language Model (Thinking)</div>
+                    <div class="layer-stat">Parameters: <span class="mono" id="alm-params">0</span></div>
+                    <div class="layer-stat">Sequences Heard: <span class="mono" id="alm-seqs">0</span></div>
+                    <div class="layer-stat">Avg Loss: <span class="mono" id="alm-loss">---</span></div>
+                </div>
+
+                <div class="neural-layer">
+                    <div class="layer-title">Neural Vocoder (Speaking)</div>
+                    <div class="layer-stat">Syntheses: <span class="mono" id="nv-synths">0</span></div>
+                </div>
+            </section>
             
         </div>
         

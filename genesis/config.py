@@ -62,7 +62,9 @@ class CortexConfig:
     max_context_memories: int = 5            # How many memories to include in context
     temperature: float = 0.7
     max_response_tokens: int = 256
-    grammar_mode: str = "llm"                # "llm" or "tabula_rasa"
+    grammar_mode: str = "tabula_rasa"          # "llm" or "tabula_rasa"
+    babbling_enabled: bool = True            # Enable acoustic babbling engine
+    joint_attention_enabled: bool = True     # Enable cross-modal binding
 
     # Continuous consciousness
     visual_interval_sec: float = 2.0         # How often the eyes look
@@ -110,6 +112,18 @@ class DrivesConfig:
 
 
 @dataclass
+class AcousticConfig:
+    """Configuration for the pure neural acoustic pipeline."""
+    sample_rate: int = 16000
+    n_mels: int = 80
+    latent_dim: int = 64
+    codebook_size: int = 256             # VQ codebook entries ("neural phonemes")
+    lm_layers: int = 4                   # Acoustic transformer depth
+    lm_heads: int = 4                    # Acoustic transformer attention heads
+    lm_embd: int = 128                   # Acoustic transformer embedding dim
+
+
+@dataclass
 class GenesisConfig:
     """Master configuration for the entire Genesis Mind system."""
 
@@ -119,6 +133,7 @@ class GenesisConfig:
     growth: GrowthConfig = field(default_factory=GrowthConfig)
     voice: VoiceConfig = field(default_factory=VoiceConfig)
     drives: DrivesConfig = field(default_factory=DrivesConfig)
+    acoustic: AcousticConfig = field(default_factory=AcousticConfig)
 
     # --- Identity ---
     creator_name: str = "Jijo John"

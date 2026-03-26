@@ -496,8 +496,85 @@ function updateUI(state) {
         ];
         drivesChart.update('none');
     }
-}
 
+    // Language Acquisition (V6)
+    if (state.language_acquisition) {
+        const la = state.language_acquisition;
+        const modeTag = document.getElementById('grammar-mode-tag');
+        if (modeTag) modeTag.textContent = la.grammar_mode || 'unknown';
+
+        // Vocabulary stats
+        const vocabSize = document.getElementById('la-vocab-size');
+        const wordsHeard = document.getElementById('la-words-heard');
+        const sentencesHeard = document.getElementById('la-sentences-heard');
+        if (vocabSize && la.joint_attention) vocabSize.textContent = la.joint_attention.vocabulary_size || 0;
+        if (wordsHeard && la.ngram) wordsHeard.textContent = (la.ngram.total_words_heard || 0).toLocaleString();
+        if (sentencesHeard && la.ngram) sentencesHeard.textContent = la.ngram.total_sentences_heard || 0;
+
+        // Babbling stats
+        const repertoire = document.getElementById('la-repertoire');
+        const babbles = document.getElementById('la-babbles');
+        const reinforcements = document.getElementById('la-reinforcements');
+        const lastBabble = document.getElementById('la-last-babble');
+        if (repertoire && la.babbling) repertoire.textContent = la.babbling.repertoire_size || 0;
+        if (babbles && la.babbling) babbles.textContent = la.babbling.total_babbles || 0;
+        if (reinforcements && la.babbling) reinforcements.textContent = la.babbling.total_reinforcements || 0;
+        if (lastBabble && la.babbling) lastBabble.textContent = la.babbling.last_babble || '---';
+
+        // Cross-modal bindings
+        const bindingsEl = document.getElementById('la-bindings');
+        const learnedEl = document.getElementById('la-learned');
+        const permanentEl = document.getElementById('la-permanent');
+        if (bindingsEl && la.joint_attention) bindingsEl.textContent = la.joint_attention.total_bindings || 0;
+        if (learnedEl && la.joint_attention) learnedEl.textContent = la.joint_attention.learned_bindings || 0;
+        if (permanentEl && la.joint_attention) permanentEl.textContent = la.joint_attention.permanent_bindings || 0;
+
+        // Strongest bindings list
+        const container = document.getElementById('la-strongest-container');
+        if (container && la.joint_attention && la.joint_attention.strongest_bindings) {
+            const bindings = la.joint_attention.strongest_bindings;
+            if (bindings.length > 0) {
+                let html = '<div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:0.3rem;">Strongest Bindings:</div>';
+                bindings.forEach(b => {
+                    const barWidth = (b.strength * 100).toFixed(0);
+                    html += `<div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.2rem; font-size:0.75rem;">
+                        <span style="min-width:60px; color:var(--accent-primary);">${b.visual}</span>
+                        <span style="color:var(--text-muted);">&harr;</span>
+                        <span style="min-width:60px; color:var(--accent-secondary);">${b.word}</span>
+                        <div style="flex:1; height:4px; background:rgba(255,255,255,0.05); border-radius:2px; overflow:hidden;">
+                            <div style="width:${barWidth}%; height:100%; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); border-radius:2px;"></div>
+                        </div>
+                        <span class="mono" style="font-size:0.65rem;">${b.strength.toFixed(2)}</span>
+                    </div>`;
+                });
+                container.innerHTML = html;
+            }
+        }
+    }
+
+    // Acoustic Neural Pipeline (V7)
+    if (state.acoustic_pipeline) {
+        const ap = state.acoustic_pipeline;
+        const paramsTag = document.getElementById('acoustic-params');
+        if (paramsTag) paramsTag.textContent = (ap.total_params || 0).toLocaleString() + ' Params';
+        const acParams = document.getElementById('ac-params');
+        const acFrames = document.getElementById('ac-frames');
+        if (acParams && ap.auditory_cortex) acParams.textContent = (ap.auditory_cortex.params || 0).toLocaleString();
+        if (acFrames && ap.auditory_cortex) acFrames.textContent = (ap.auditory_cortex.frames_processed || 0).toLocaleString();
+        const vqActive = document.getElementById('vq-active');
+        const vqUtil = document.getElementById('vq-util');
+        if (vqActive && ap.vq_codebook) vqActive.textContent = ap.vq_codebook.active_codes || 0;
+        if (vqUtil && ap.vq_codebook) vqUtil.textContent = ((ap.vq_codebook.codebook_utilization || 0) * 100).toFixed(1) + '%';
+        const almParams = document.getElementById('alm-params');
+        const almSeqs = document.getElementById('alm-seqs');
+        const almLoss = document.getElementById('alm-loss');
+        if (almParams && ap.acoustic_brain) almParams.textContent = (ap.acoustic_brain.params || 0).toLocaleString();
+        if (almSeqs && ap.acoustic_brain) almSeqs.textContent = ap.acoustic_brain.total_sequences_heard || 0;
+        if (almLoss && ap.acoustic_brain) almLoss.textContent = (ap.acoustic_brain.avg_loss || 0).toFixed(4);
+        const nvSynths = document.getElementById('nv-synths');
+        if (nvSynths && ap.vocoder) nvSynths.textContent = ap.vocoder.total_syntheses || 0;
+    }
+}
 // Fetch loop
 async function fetchState() {
     try {
