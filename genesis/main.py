@@ -506,6 +506,26 @@ class GenesisMind:
         lines.append(f"  Experiences:     {neural['layer_3']['personality']['total_experiences']}")
         lines.append(f"  Personality:     {'forming' if neural['layer_3']['personality']['has_consciousness'] else 'dormant'}")
 
+        # Router (Meta-Controller) stats
+        router = neural.get('router', {}).get('meta_controller', {})
+        if router:
+            rp = router.get('routing_personality', {})
+            lines.append("")
+            lines.append("  ── Neural Router (Thalamus) ──")
+            lines.append(f"  Routes computed:  {router.get('total_routes', 0)}")
+            lines.append(f"  Dominant module:  {router.get('dominant_module', 'N/A')}")
+            for name, weight in rp.items():
+                bar = '█' * int(weight * 20)
+                lines.append(f"    {name:14s} {bar:20s} {weight:.3f}")
+
+        # Sleep/Dream stats
+        sleep_stats = self.sleep_cycle.get_stats()
+        lines.append("")
+        lines.append("  ── Sleep & Dreams ──")
+        lines.append(f"  Sleep cycles:    {sleep_stats['sleep_count']}")
+        lines.append(f"  Total dreams:    {sleep_stats['total_dreams']}")
+        lines.append(f"  Discoveries:     {sleep_stats['dream_discoveries']}")
+
         # Voice status
         lines.append("")
         lines.append(f"  ── Voice ──")
@@ -522,34 +542,44 @@ class GenesisMind:
         return "\n".join(lines)
 
     def trigger_sleep(self) -> str:
+        # Full 4-phase sleep: Light → Deep → REM (dreaming) → Integration
         report = self.sleep_cycle.consolidate(
             semantic_memory=self.semantic_memory,
             episodic_memory=self.episodic_memory,
             phonetics_engine=self.phonetics,
+            subconscious=self.subconscious,
+            hippocampus=self.hippocampus,
+            neurochemistry=self.neurochemistry,
         )
         self.neurochemistry.on_sleep_consolidation()
         self.curiosity.reset_habituation()
-        
-        # Consolidate neural weights via Replay Buffer
-        batch = self.hippocampus.sample_replay_batch(batch_size=32)
-        if batch:
-            loss = self.subconscious.consolidate_memories(batch)
-            logger.info("Neural consolidation complete. Contrastive loss: %.4f", loss)
-            
         self.subconscious.save_all()
 
         # V4: Reset proprioception fatigue and drives after sleep
         self.proprioception.record_sleep()
         self.drives.on_sleep()
 
-        return (
-            f"Sleep cycle #{report['sleep_number']} complete.\n"
-            f"  Concepts: {report['concepts_before']} → {report['concepts_after']}\n"
-            f"  Reinforced: {report['concepts_reinforced']} | Pruned: {report['concepts_pruned']}\n"
-            f"  Duration: {report['duration_sec']:.2f}s\n"
-            f"  Neural weights saved. Stress reduced. Curiosity refreshed.\n"
-            f"  Fatigue reset to {self.proprioception.fatigue:.2f}."
-        )
+        # Build report with dream info
+        lines = [
+            f"Sleep cycle #{report['sleep_number']} complete (4-phase).",
+            f"  Phase 1 (Light):  Pruned {report['concepts_pruned']} weak memories",
+            f"  Phase 2 (Deep):   Reinforced {report['concepts_reinforced']} concepts",
+            f"  Phase 3 (REM):    {report['dreams_had']} dreams, {report['dream_discoveries']} discoveries",
+            f"  Phase 4 (Integ):  Coherence check done",
+            f"  Concepts: {report['concepts_before']} → {report['concepts_after']}",
+            f"  Duration: {report['duration_sec']:.2f}s",
+            f"  Fatigue reset to {self.proprioception.fatigue:.2f}.",
+        ]
+
+        # Show dream discoveries
+        rem_phase = report.get("phases", {}).get("rem_dreaming", {})
+        dreams = rem_phase.get("dreams", [])
+        if dreams:
+            lines.append("  💭 Dream discoveries:")
+            for d in dreams[:5]:
+                lines.append(f"     '{d['concept_1']}' ↔ '{d['concept_2']}' (surprise: {d['surprise']:.3f})")
+
+        return "\n".join(lines)
 
     def get_chemicals(self) -> str:
         neuro = self.neurochemistry.get_status()

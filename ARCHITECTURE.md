@@ -1,8 +1,8 @@
-# Genesis Mind V3 — Architecture Deep Dive
+# Genesis Mind V4 — Architecture Deep Dive
 
-> *The weights ARE the personality. The data IS you.*
+> *The weights ARE the personality. The data IS you. The dreams are real.*
 
-This document describes the complete technical architecture of Genesis Mind V3: a biologically-inspired "Society of Mind" where cascading neural networks accumulate real-time experience, and the saved weights physically constitute a unique AI personality.
+This document describes the complete technical architecture of Genesis Mind V4: a biologically-inspired "Society of Mind + Body" where cascading neural networks are dynamically routed by a learned meta-controller, accumulate real-time experience, dream during multi-phase sleep, and the saved weights physically constitute a unique AI personality.
 
 ---
 

@@ -27,6 +27,7 @@ from genesis.neural.binding_network import BindingNetwork
 from genesis.neural.personality_network import PersonalityNetwork
 from genesis.neural.forward_model import WorldModel
 from genesis.neural.response_decoder import ResponseDecoder
+from genesis.neural.meta_controller import MetaController
 
 logger = logging.getLogger("genesis.neural.subconscious")
 
@@ -69,6 +70,14 @@ class Subconscious:
         # Response Decoder: Neural Voice
         self.response_decoder = ResponseDecoder(top_k=3)
 
+        # Meta-Controller: Neural Router (the Thalamus)
+        self.meta_controller = MetaController(
+            input_dim=896,  # 512 CLIP + 384 text
+            num_modules=4,
+            hidden_dim=64,
+            lr=0.0003,
+        )
+
         # Load existing weights if they exist
         self._load_all()
 
@@ -86,6 +95,7 @@ class Subconscious:
         logger.info("  Layer 2: Binding (%d)", sum(p.numel() for p in self.binding_network.network.parameters()))
         logger.info("  Layer 3: Personality (%d)", sum(p.numel() for p in self.personality.network.parameters()))
         logger.info("  Layer 4: World Model (%d)", sum(p.numel() for p in self.world_model.network.parameters()))
+        logger.info("  Router:  Meta-Controller (%d)", sum(p.numel() for p in self.meta_controller.network.parameters()))
         logger.info("  Using CLIP (512) and Text Embeddings (384) as pre-trained hardware.")
         logger.info("═══════════════════════════════════════════════════")
 
@@ -111,19 +121,32 @@ class Subconscious:
         visual_latent = clip_embedding if clip_embedding is not None else np.zeros(512, dtype=np.float32)
         auditory_latent = text_embedding if text_embedding is not None else np.zeros(384, dtype=np.float32)
 
-        # ─── Layer 1: Encode (Instinct) ───────────────────────────
-        limbic_response = self.limbic_system.react(visual_latent, auditory_latent)
-        result['limbic_response'] = limbic_response
+        # ─── Meta-Controller: Compute routing weights ──────────
+        routing = self.meta_controller.route(visual_latent, auditory_latent)
+        result['routing_weights'] = routing
 
-        # ─── Layer 2: Bind ────────────────────────────────────────
+        # ─── Layer 1: Encode (Instinct) ───────────────────────
+        limbic_response = self.limbic_system.react(visual_latent, auditory_latent)
+        # Scale by routing weight
+        limbic_weight = routing['limbic']
+        scaled_limbic = {
+            k: v * limbic_weight for k, v in limbic_response.items()
+        }
+        result['limbic_response'] = limbic_response  # Keep raw for training
+        result['scaled_limbic'] = scaled_limbic
+
+        # ─── Layer 2: Bind ────────────────────────────────────
         concept_embedding = self.binding_network.bind(visual_latent, auditory_latent)
-        result['concept_embedding'] = concept_embedding
+        # Scale by routing weight
+        binding_weight = routing['binding']
+        scaled_concept = concept_embedding * binding_weight
+        result['concept_embedding'] = concept_embedding  # Keep raw
 
         if train:
-            # Replay buffer handles offline batch training in V3.1
-            pass
+            pass  # Replay buffer handles offline batch training
 
-        # ─── Layer 3: Think ───────────────────────────────────────
+        # ─── Layer 3: Think ─────────────────────────────────
+        personality_weight = routing['personality']
         response = self.personality.experience(
             concept_embedding=concept_embedding,
             limbic_state=limbic_response,
@@ -136,6 +159,11 @@ class Subconscious:
             # Predict the future and learn from the surprise
             surprise = self.world_model.predict_and_learn(result['concept_embedding'], result['consciousness_state'])
             result['surprise'] = surprise
+
+            # Train the meta-controller from surprise
+            self.meta_controller.learn_from_surprise(
+                visual_latent, auditory_latent, surprise
+            )
 
         return result
 
@@ -181,6 +209,7 @@ class Subconscious:
         self.binding_network.save_weights(self.weights_dir / "binding_network.pt")
         self.personality.save_weights(self.weights_dir / "personality.pt")
         self.world_model.save_weights(self.weights_dir / "world_model.pt")
+        self.meta_controller.save_weights(self.weights_dir / "meta_controller.pt")
         logger.info("All neural weights saved to %s", self.weights_dir)
 
     def _load_all(self):
@@ -189,6 +218,7 @@ class Subconscious:
         self.binding_network.load_weights(self.weights_dir / "binding_network.pt")
         self.personality.load_weights(self.weights_dir / "personality.pt")
         self.world_model.load_weights(self.weights_dir / "world_model.pt")
+        self.meta_controller.load_weights(self.weights_dir / "meta_controller.pt")
 
     def get_stats(self) -> Dict:
         """Get comprehensive stats across all neural layers."""
@@ -205,6 +235,9 @@ class Subconscious:
             "layer_4": {
                 "world_model": self.world_model.get_stats(),
             },
+            "router": {
+                "meta_controller": self.meta_controller.get_stats(),
+            },
         }
 
     def get_total_params(self) -> int:
@@ -212,7 +245,8 @@ class Subconscious:
             sum(p.numel() for p in self.limbic_system.network.parameters()) +
             sum(p.numel() for p in self.binding_network.network.parameters()) +
             sum(p.numel() for p in self.personality.network.parameters()) +
-            sum(p.numel() for p in self.world_model.network.parameters())
+            sum(p.numel() for p in self.world_model.network.parameters()) +
+            sum(p.numel() for p in self.meta_controller.network.parameters())
         )
 
     def __repr__(self) -> str:
