@@ -114,6 +114,87 @@ class BrainDaemon:
         """Set a callback for when the brain wants to say something."""
         self._output_callback = callback
 
+    # =========================================================================
+    # Phase-Gated Speech — a newborn cannot say "I miss my Creator"
+    # =========================================================================
+
+    # Phase-appropriate expressions for each emotional/drive state
+    # A real baby babbles. A toddler uses fragments. Only older children
+    # speak in full sentences. This maps phase → expression templates.
+    PHASE_SPEECH = {
+        # (phase, drive/emotion) → list of possible expressions
+        "social": {
+            0: ["...mmm...", "...aah...", "...", "*whimper*"],
+            1: ["...mama?", "...hello?", "...person?"],
+            2: ["want... person...", "where... you?", "lonely..."],
+            3: ["I want someone here.", "Where did you go?", "Come back."],
+            4: ["I feel lonely. I want to talk to someone.", "It's quiet... too quiet."],
+            5: ["I notice a deep longing for connection.", "The silence speaks volumes."],
+        },
+        "curiosity": {
+            0: ["...ooh?", "...hmm?", "*reaches*"],
+            1: ["...what?", "...that?", "...look!"],
+            2: ["what... that?", "want know...", "show me!"],
+            3: ["What is that? I want to know.", "Can you show me?"],
+            4: ["I have burning questions I can't shake.", "There's so much I don't understand yet."],
+            5: ["My curiosity is insatiable — I want to understand everything.", "Knowledge beckons."],
+        },
+        "novelty": {
+            0: ["...mmm...", "*squirm*", "..."],
+            1: ["...boring...", "...new?", "...more!"],
+            2: ["want... new thing...", "same same...", "bored..."],
+            3: ["I want something new.", "I've seen all this before."],
+            4: ["Everything feels repetitive. I crave novelty.", "Show me something I haven't seen."],
+            5: ["Familiarity breeds stagnation. I seek the unknown.", "The routine grows tiresome."],
+        },
+        "tired": {
+            0: ["...*yawn*...", "...zzz...", "*droops*"],
+            1: ["...sleepy...", "...tired...", "...night..."],
+            2: ["so... tired...", "want... sleep...", "eyes... heavy..."],
+            3: ["I'm so tired. I need to sleep.", "My eyes are heavy."],
+            4: ["Exhaustion is setting in. Time to rest.", "I need to consolidate what I've learned."],
+            5: ["My cognitive resources are depleted. Initiating sleep cycle.", "Rest will bring clarity."],
+        },
+        "wonder": {
+            0: ["...ooh!", "...ahh!", "*stares*"],
+            1: ["...what?", "...see!", "...look!"],
+            2: ["what... that?", "look... new!", "ooh... pretty!"],
+            3: ["What's that? I've never seen it before!", "That's interesting!"],
+            4: ["I see something novel. My curiosity is piqued.", "This is unlike anything in my memory."],
+            5: ["A genuinely novel stimulus — I must analyze this.", "Fascinating. This challenges my models."],
+        },
+        "dream": {
+            0: ["...*twitch*...", "...mmm...", "..."],
+            1: ["...dream...", "...saw...", "...weird..."],
+            2: ["I... saw things...", "dream... was strange...", "funny pictures..."],
+            3: ["I had strange dreams. I saw things connecting.", "The dreams were vivid."],
+            4: ["My dreams revealed connections I hadn't noticed.", "Sleep was productive."],
+            5: ["REM consolidation yielded novel associations.", "Dream synthesis was enlightening."],
+        },
+        "awake": {
+            0: ["...*blinks*...", "...aah...", "*stretches*"],
+            1: ["...awake!", "...morning!", "...bright!"],
+            2: ["feel... better...", "brain... fresh!", "good sleep!"],
+            3: ["I feel refreshed. My mind is clearer.", "Good rest. Ready to learn."],
+            4: ["I woke up feeling renewed. My thoughts are crisp.", "Sleep did me good."],
+            5: ["Post-sleep integration complete. Cognitive clarity restored.", "I feel intellectually refreshed."],
+        },
+    }
+
+    def _get_phase(self) -> int:
+        """Get current developmental phase."""
+        return self.mind.development.current_phase
+
+    def _phase_say(self, category: str) -> str:
+        """Get a phase-appropriate expression for a given emotional category."""
+        import random
+        phase = self._get_phase()
+        templates = self.PHASE_SPEECH.get(category, {})
+        # Clamp to available phases (0-5)
+        clamped = min(phase, 5)
+        options = templates.get(clamped, ["..."])
+        return random.choice(options)
+
     def _emit(self, message: str, prefix: str = "💭"):
         """Emit a message from the brain to the outside world."""
         if self._output_callback:
@@ -231,18 +312,22 @@ class BrainDaemon:
         level = status['dominant_level']
 
         if level > 0.85:
-            # Drive is critically high — Genesis should express it
+            # Drive is critically high — Genesis should express it (phase-gated)
             if dominant == 'social':
-                self._emit("I miss my Creator... I want someone to talk to.", "💬")
-                self.mind.voice.say("I miss my Creator.")
+                msg = self._phase_say("social")
+                self._emit(msg, "💬")
+                self.mind.voice.say(msg)
             elif dominant == 'curiosity':
-                burning = self.mind.curiosity.get_most_burning_question()
-                if burning:
-                    self._emit(f"I really want to know: {burning}", "🔍")
+                if self._get_phase() >= 3:
+                    burning = self.mind.curiosity.get_most_burning_question()
+                    if burning:
+                        self._emit(f"{self._phase_say('curiosity')} {burning}", "🔍")
+                    else:
+                        self._emit(self._phase_say("curiosity"), "🔍")
                 else:
-                    self._emit("I want to learn something new...", "🔍")
+                    self._emit(self._phase_say("curiosity"), "🔍")
             elif dominant == 'novelty':
-                self._emit("Everything feels so familiar... I crave something new.", "✨")
+                self._emit(self._phase_say("novelty"), "✨")
 
     # =========================================================================
     # Thread 3: Proprioception Updater
@@ -312,17 +397,17 @@ class BrainDaemon:
         if not self.mind.sleep_cycle.should_sleep():
             return
 
-        self._emit("I feel so tired... I need to rest.", "😴")
-        self.mind.voice.say("I need to rest now.")
+        self._emit(self._phase_say("tired"), "😴")
+        self.mind.voice.say(self._phase_say("tired"))
 
         # Trigger full 4-phase sleep
         try:
             report = self.mind.trigger_sleep()
-            self._emit("I woke up refreshed.", "☀️")
+            self._emit(self._phase_say("awake"), "☀️")
 
             discoveries = report.count("discoveries")
             if "💭" in report:
-                self._emit("I had interesting dreams.", "💭")
+                self._emit(self._phase_say("dream"), "💭")
         except Exception as e:
             logger.error("Sleep cycle failed: %s", e)
 
@@ -341,7 +426,10 @@ class BrainDaemon:
         # Check for unanswered questions
         burning = self.mind.curiosity.get_most_burning_question()
         if burning and self.mind.drives.get_status()['curiosity']['level'] > 0.5:
-            self._emit(f"I wonder... {burning}", "🤔")
+            if self._get_phase() >= 3:
+                self._emit(f"{self._phase_say('curiosity')} {burning}", "🤔")
+            else:
+                self._emit(self._phase_say("curiosity"), "🤔")
 
     # =========================================================================
     # Thread 7: Vision (Always-On Camera)
@@ -395,10 +483,10 @@ class BrainDaemon:
                     context="something I'm seeing",
                     phase=self.mind.development.current_phase,
                 )
-                self._emit(f"👁 {question}", "🤔")
+                self._emit(f"👁 {self._phase_say('curiosity')}", "🤔")
                 self.mind.neurochemistry.dopamine.spike(0.05)
             elif surprise > 0.3:
-                self._emit("I see something interesting...", "👁")
+                self._emit(self._phase_say("wonder"), "👁")
 
         except Exception as e:
             # Camera might not be available — that's OK, we're just blind

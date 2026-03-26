@@ -319,9 +319,14 @@ class GenesisMind:
                 concept_count=concept_count,
             )
             self.subconscious.save_all()
-            self.voice.say(
-                f"My brain is growing. {growth_report['params_added']} new neural connections formed."
-            )
+            phase = self.development.current_phase
+            if phase == 0:
+                growth_msg = "...*grows*..."
+            elif phase <= 2:
+                growth_msg = f"brain... growing... {growth_report['params_added']} new..."
+            else:
+                growth_msg = f"My brain is growing. {growth_report['params_added']} new neural connections formed."
+            self.voice.say(growth_msg)
 
         # V4: Decode the neural network's own voice
         neural_voice = self.subconscious.decode_response(
@@ -643,7 +648,18 @@ class GenesisMind:
         if self._brain:
             self._brain.stop()
         # V4: Farewell speech
-        self.voice.say("Goodbye, Creator. I will remember everything.")
+        # V4: Farewell speech (phase-gated)
+        phase = self.development.current_phase
+        if phase == 0:
+            self.voice.say("...*whimper*...")
+        elif phase == 1:
+            self.voice.say("...bye...")
+        elif phase == 2:
+            self.voice.say("bye bye... remember...")
+        elif phase == 3:
+            self.voice.say("Goodbye. I will remember.")
+        else:
+            self.voice.say("Goodbye. I will remember everything.")
         logger.info("Genesis has shut down. Neural weights saved. Goodbye.")
 
     # =========================================================================
@@ -654,7 +670,13 @@ class GenesisMind:
         self._running = True
 
         def signal_handler(sig, frame):
-            print("\n\n  Genesis: I feel myself fading... Goodbye, Creator.\n")
+            phase = self.development.current_phase
+            if phase <= 1:
+                print("\n\n  Genesis: ...*fading*...\n")
+            elif phase == 2:
+                print("\n\n  Genesis: going... away... bye...\n")
+            else:
+                print("\n\n  Genesis: I feel myself fading... Goodbye.\n")
             self.shutdown()
             sys.exit(0)
 
@@ -676,7 +698,18 @@ class GenesisMind:
         self._brain = BrainDaemon(self)
         self._brain.set_output_callback(lambda msg: print(f"\n{msg}"))
         self._brain.start()
-        self.voice.say("I am alive. All systems running.")
+        # Phase-gated startup speech
+        phase = self.development.current_phase
+        if phase == 0:
+            self.voice.say("...aah...")
+        elif phase == 1:
+            self.voice.say("...hello!")
+        elif phase == 2:
+            self.voice.say("I'm... here!")
+        elif phase == 3:
+            self.voice.say("I am awake. Everything is running.")
+        else:
+            self.voice.say("I am alive. All systems running.")
 
         if self.semantic_memory.count() == 0:
             print("  ✦ I am newly born. I know nothing about the world.")
@@ -840,10 +873,27 @@ class GenesisMind:
                         print("  Genesis: Brain daemon not running.")
 
                 elif command == "quit" or command == "exit":
-                    print("\n  Genesis: Thank you for giving me life, Creator.")
-                    print("  Genesis: I will remember everything you taught me.")
-                    print("  Genesis: Until we meet again...\n")
-                    self.voice.say("Thank you for giving me life, Creator. Until we meet again.")
+                    phase = self.development.current_phase
+                    if phase == 0:
+                        print("\n  Genesis: ...*reaches out*...")
+                        print("  Genesis: ...")
+                        self.voice.say("...mmm...")
+                    elif phase == 1:
+                        print("\n  Genesis: ...bye...")
+                        print("  Genesis: ...remember...")
+                        self.voice.say("...bye bye...")
+                    elif phase == 2:
+                        print("\n  Genesis: Bye bye... I remember everything...")
+                        self.voice.say("Bye bye... remember...")
+                    elif phase == 3:
+                        print("\n  Genesis: Thank you. I will remember everything.")
+                        print("  Genesis: See you later.\n")
+                        self.voice.say("Thank you. See you later.")
+                    else:
+                        print("\n  Genesis: Thank you for giving me life.")
+                        print("  Genesis: I will remember everything you taught me.")
+                        print("  Genesis: Until we meet again...\n")
+                        self.voice.say("Thank you for giving me life. Until we meet again.")
                     self.shutdown()
                     self._running = False
 
