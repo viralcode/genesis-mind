@@ -158,14 +158,21 @@ class DashboardServer:
                 try:
                     concepts = mind.semantic_memory.get_all_concepts()
                     for c in concepts:
+                        # Filter out malformed entries (ChromaDB artifacts with paths, long IDs, etc.)
+                        word = c.word
+                        if not word or '/' in word or len(word) > 30:
+                            continue
+                        strength = getattr(c, 'strength', 1.0)
                         nodes.append({
-                            "id": c.word, 
-                            "label": c.word, 
+                            "id": word, 
+                            "label": word, 
                             "group": "concept", 
-                            "title": f"Strength: {getattr(c, 'strength', 1.0):.2f}"
+                            "title": f"Strength: {strength:.2f}",
+                            "strength": round(strength, 3)
                         })
                         for rel in getattr(c, 'relationships', []):
-                            edges.append({"from": c.word, "to": rel})
+                            if rel and '/' not in rel and len(rel) <= 30:
+                                edges.append({"from": word, "to": rel})
                 except Exception as e:
                     logger.error("Failed to build semantic map: %s", e)
             
