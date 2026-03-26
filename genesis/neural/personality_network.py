@@ -50,8 +50,8 @@ class PersonalityGRU(nn.Module):
     The trained weights are the personality.
     """
 
-    def __init__(self, input_dim: int = 100, hidden_dim: int = 128,
-                 output_dim: int = 64, num_layers: int = 2):
+    def __init__(self, input_dim: int = 100, hidden_dim: int = 256,
+                 output_dim: int = 64, num_layers: int = 3):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
@@ -120,7 +120,7 @@ class PersonalityNetwork:
     """
 
     def __init__(self, concept_dim: int = 64, limbic_dim: int = 4,
-                 context_dim: int = 32, hidden_dim: int = 128,
+                 context_dim: int = 32, hidden_dim: int = 256,
                  lr: float = 0.0005):
         self.concept_dim = concept_dim
         self.limbic_dim = limbic_dim
@@ -232,11 +232,11 @@ class PersonalityNetwork:
         """
         Get the raw hidden state — the stream of consciousness.
 
-        This 128-dim vector encodes the cumulative effect of
+        This 256-dim vector encodes the cumulative effect of
         every experience Genesis has ever had. It IS the mind.
         """
         if self._hidden_state is None:
-            return np.zeros(128, dtype=np.float32)
+            return np.zeros(256, dtype=np.float32)
         return self._hidden_state[-1].squeeze(0).numpy()
 
     def _train_on_buffer(self):

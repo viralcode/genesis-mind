@@ -25,6 +25,8 @@ from pathlib import Path
 from datetime import datetime
 
 import numpy as np
+from collections import deque
+import random
 
 logger = logging.getLogger("genesis.memory.hippocampus")
 
@@ -43,6 +45,9 @@ class Hippocampus:
         self.embedding_dim = embedding_dim
         self._client = None
         self._collections: Dict[str, Any] = {}
+        
+        # Short-term replay buffer for neural weight consolidation (sleep/offline learning)
+        self.replay_buffer = deque(maxlen=10000)
 
         self._initialize()
         logger.info("Hippocampus initialized at %s", persist_dir)
@@ -250,6 +255,21 @@ class Hippocampus:
     def get_stats(self) -> Dict[str, int]:
         """Get memory statistics across all collections."""
         return {name: coll.count() for name, coll in self._collections.items()}
+
+    def add_to_replay(self, visual_latent: np.ndarray, auditory_latent: np.ndarray, limbic_state: Dict[str, float], concept_embedding: np.ndarray):
+        """Add raw neural states to the short-term replay buffer."""
+        self.replay_buffer.append({
+            "visual": visual_latent,
+            "auditory": auditory_latent,
+            "limbic": limbic_state,
+            "concept": concept_embedding
+        })
+
+    def sample_replay_batch(self, batch_size: int = 32) -> List[Dict]:
+        """Sample a diverse batch of past experiences for neural consolidation."""
+        if len(self.replay_buffer) < batch_size:
+            return list(self.replay_buffer)
+        return random.sample(self.replay_buffer, batch_size)
 
     def __repr__(self) -> str:
         total = self.count()

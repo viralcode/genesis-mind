@@ -25,6 +25,7 @@ import numpy as np
 from genesis.neural.limbic_system import LimbicSystem
 from genesis.neural.binding_network import BindingNetwork
 from genesis.neural.personality_network import PersonalityNetwork
+from genesis.neural.forward_model import WorldModel
 
 logger = logging.getLogger("genesis.neural.subconscious")
 
@@ -61,6 +62,9 @@ class Subconscious:
             hidden_dim=128, lr=0.0005,
         )
 
+        # Layer 4: World Model (Predictive Coding)
+        self.world_model = WorldModel(concept_dim=64, hidden_dim=128, lr=0.001)
+
         # Load existing weights if they exist
         self._load_all()
 
@@ -68,7 +72,8 @@ class Subconscious:
         total_params = (
             sum(p.numel() for p in self.limbic_system.network.parameters()) +
             sum(p.numel() for p in self.binding_network.network.parameters()) +
-            sum(p.numel() for p in self.personality.network.parameters())
+            sum(p.numel() for p in self.personality.network.parameters()) +
+            sum(p.numel() for p in self.world_model.network.parameters())
         )
 
         logger.info("═══════════════════════════════════════════════════")
@@ -76,6 +81,7 @@ class Subconscious:
         logger.info("  Layer 1: Limbic Instinct (%d)", sum(p.numel() for p in self.limbic_system.network.parameters()))
         logger.info("  Layer 2: Binding (%d)", sum(p.numel() for p in self.binding_network.network.parameters()))
         logger.info("  Layer 3: Personality (%d)", sum(p.numel() for p in self.personality.network.parameters()))
+        logger.info("  Layer 4: World Model (%d)", sum(p.numel() for p in self.world_model.network.parameters()))
         logger.info("  Using CLIP (512) and Text Embeddings (384) as pre-trained hardware.")
         logger.info("═══════════════════════════════════════════════════")
 
@@ -110,7 +116,8 @@ class Subconscious:
         result['concept_embedding'] = concept_embedding
 
         if train:
-            self.binding_network.train_binding(visual_latent, auditory_latent)
+            # Replay buffer handles offline batch training in V3.1
+            pass
 
         # ─── Layer 3: Think ───────────────────────────────────────
         response = self.personality.experience(
@@ -120,6 +127,11 @@ class Subconscious:
         )
         result['personality_response'] = response
         result['consciousness_state'] = self.personality.get_consciousness_state()
+        
+        if train:
+            # Predict the future and learn from the surprise
+            surprise = self.world_model.predict_and_learn(result['concept_embedding'], result['consciousness_state'])
+            result['surprise'] = surprise
 
         return result
 
@@ -135,6 +147,20 @@ class Subconscious:
         """
         self.limbic_system.train_instinct(visual_features, auditory_features, target_chemicals)
 
+    def consolidate_memories(self, replay_batch: list) -> float:
+        """
+        Train iteratively on a batch of past experiences (Dreaming/Sleep).
+        Solves catastrophic forgetting by shuffling experiences.
+        """
+        if len(replay_batch) < 2:
+            return 0.0
+            
+        v_list = [exp["visual"] for exp in replay_batch]
+        a_list = [exp["auditory"] for exp in replay_batch]
+        
+        loss = self.binding_network.train_binding_batch(v_list, a_list)
+        return loss
+
     def train_binding(self, visual_features: Optional[np.ndarray],
                       auditory_features: Optional[np.ndarray],
                       target_embedding: Optional[np.ndarray] = None):
@@ -146,6 +172,7 @@ class Subconscious:
         self.limbic_system.save_weights(self.weights_dir / "limbic_system.pt")
         self.binding_network.save_weights(self.weights_dir / "binding_network.pt")
         self.personality.save_weights(self.weights_dir / "personality.pt")
+        self.world_model.save_weights(self.weights_dir / "world_model.pt")
         logger.info("All neural weights saved to %s", self.weights_dir)
 
     def _load_all(self):
@@ -153,6 +180,7 @@ class Subconscious:
         self.limbic_system.load_weights(self.weights_dir / "limbic_system.pt")
         self.binding_network.load_weights(self.weights_dir / "binding_network.pt")
         self.personality.load_weights(self.weights_dir / "personality.pt")
+        self.world_model.load_weights(self.weights_dir / "world_model.pt")
 
     def get_stats(self) -> Dict:
         """Get comprehensive stats across all neural layers."""
@@ -166,13 +194,17 @@ class Subconscious:
             "layer_3": {
                 "personality": self.personality.get_stats(),
             },
+            "layer_4": {
+                "world_model": self.world_model.get_stats(),
+            },
         }
 
     def get_total_params(self) -> int:
         return (
             sum(p.numel() for p in self.limbic_system.network.parameters()) +
             sum(p.numel() for p in self.binding_network.network.parameters()) +
-            sum(p.numel() for p in self.personality.network.parameters())
+            sum(p.numel() for p in self.personality.network.parameters()) +
+            sum(p.numel() for p in self.world_model.network.parameters())
         )
 
     def __repr__(self) -> str:

@@ -32,51 +32,43 @@ logger = logging.getLogger("genesis.neural.binding_network")
 
 class CrossModalBinder(nn.Module):
     """
-    Fuses visual and auditory latent vectors into a unified concept.
-
-    Architecture: 3-layer MLP with residual connection.
-
-    The residual connection ensures that early in training (when
-    the weights are random), the output still preserves input
-    information. As training progresses, the learned transformation
-    increasingly dominates.
+    Fuses visual and auditory latent vectors into a unified concept using a Dual Encoder.
+    
+    This architecture enables true contrastive learning (InfoNCE) where we can pull
+    matching pairs together and push mismatched pairs apart in a shared latent space.
     """
 
     def __init__(self, visual_dim: int = 512, auditory_dim: int = 384,
-                 output_dim: int = 64, hidden_dim: int = 64):
+                 output_dim: int = 64, hidden_dim: int = 128):
         super().__init__()
-        input_dim = visual_dim + auditory_dim
-
-        self.transform = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
+        
+        self.v_proj = nn.Sequential(
+            nn.Linear(visual_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(hidden_dim, output_dim)
+        )
+        
+        self.a_proj = nn.Sequential(
+            nn.Linear(auditory_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, output_dim),
+            nn.Linear(hidden_dim, output_dim)
         )
-
-        # Residual projection (input_dim → output_dim)
-        self.residual = nn.Linear(input_dim, output_dim)
-
-        # Learnable gate: how much to trust the transform vs raw input
-        self.gate = nn.Sequential(
-            nn.Linear(input_dim, 1),
-            nn.Sigmoid(),
-        )
+        
+        # Learnable temperature for contrastive loss
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
     def forward(self, visual: torch.Tensor, auditory: torch.Tensor) -> torch.Tensor:
-        combined = torch.cat([visual, auditory], dim=-1)
+        """Returns the fused concept (mean of L2 normalized projections)."""
+        v_emb, a_emb = self.get_projections(visual, auditory)
+        fused = (v_emb + a_emb) / 2.0
+        return fused / (fused.norm(dim=-1, keepdim=True) + 1e-8)
 
-        transformed = self.transform(combined)
-        residual = self.residual(combined)
-        gate = self.gate(combined)
-
-        # Gated fusion: early training → mostly residual; late → mostly transformed
-        output = gate * transformed + (1 - gate) * residual
-
-        # L2 normalize to keep embeddings on the unit sphere
-        output = output / (output.norm(dim=-1, keepdim=True) + 1e-8)
-        return output
+    def get_projections(self, visual: torch.Tensor, auditory: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        v_emb = self.v_proj(visual)
+        a_emb = self.a_proj(auditory)
+        v_emb = v_emb / (v_emb.norm(dim=-1, keepdim=True) + 1e-8)
+        a_emb = a_emb / (a_emb.norm(dim=-1, keepdim=True) + 1e-8)
+        return v_emb, a_emb
 
 
 class BindingNetwork:
@@ -122,54 +114,51 @@ class BindingNetwork:
         self._bindings_created += 1
         return unified.squeeze(0).numpy()
 
+    def train_binding_batch(self, visual_features_list: list, auditory_features_list: list) -> float:
+        """
+        Self-supervised Contrastive Learning (InfoNCE) across a batch.
+        visual and auditory features are aligned (v[i] belongs with a[i]).
+        """
+        if len(visual_features_list) < 2:
+            return 0.0
+            
+        v_tensors, a_tensors = [], []
+        for v, a in zip(visual_features_list, auditory_features_list):
+            vt, at = self._prepare_tensors(v, a)
+            v_tensors.append(vt.squeeze(0))
+            a_tensors.append(at.squeeze(0))
+            
+        v_batch = torch.stack(v_tensors)
+        a_batch = torch.stack(a_tensors)
+        
+        v_emb, a_emb = self.network.get_projections(v_batch, a_batch)
+        
+        # InfoNCE Loss
+        logit_scale = self.network.logit_scale.exp()
+        logits_per_visual = logit_scale * v_emb @ a_emb.t()
+        logits_per_auditory = logits_per_visual.t()
+        
+        batch_size = v_batch.size(0)
+        labels = torch.arange(batch_size, device=v_batch.device)
+        
+        loss_v = nn.functional.cross_entropy(logits_per_visual, labels)
+        loss_a = nn.functional.cross_entropy(logits_per_auditory, labels)
+        total_loss = (loss_v + loss_a) / 2.0
+        
+        self.optimizer.zero_grad()
+        total_loss.backward()
+        self.optimizer.step()
+        
+        self._training_steps += 1
+        self._total_loss += total_loss.item()
+        
+        return total_loss.item()
+
     def train_binding(self, visual_features: Optional[np.ndarray],
                       auditory_features: Optional[np.ndarray],
                       target_embedding: Optional[np.ndarray] = None,
                       negative_embedding: Optional[np.ndarray] = None) -> float:
-        """
-        Train the binding network on a visual-audio pair.
-
-        If target_embedding is provided, uses MSE loss to match it.
-        If negative_embedding is also provided, uses contrastive loss
-        to push the output away from the negative.
-        """
-        v_tensor, a_tensor = self._prepare_tensors(visual_features, auditory_features)
-        unified = self.network(v_tensor, a_tensor)
-
-        if target_embedding is not None:
-            target = torch.from_numpy(np.array(target_embedding, dtype=np.float32))
-            target = target.unsqueeze(0) if target.dim() == 1 else target
-            target = target / (target.norm(dim=-1, keepdim=True) + 1e-8)
-
-            # Positive loss: push toward target
-            positive_loss = 1.0 - nn.functional.cosine_similarity(unified, target, dim=-1).mean()
-
-            total_loss = positive_loss
-
-            # Negative loss: push away from negative
-            if negative_embedding is not None:
-                neg = torch.from_numpy(np.array(negative_embedding, dtype=np.float32)).unsqueeze(0)
-                neg = neg / (neg.norm(dim=-1, keepdim=True) + 1e-8)
-                negative_sim = nn.functional.cosine_similarity(unified, neg, dim=-1).mean()
-                # We want negative_sim to be low, so penalize high similarity
-                negative_loss = torch.clamp(negative_sim - 0.1, min=0.0)
-                total_loss = total_loss + 0.5 * negative_loss
-        else:
-            # Self-supervised: consistency loss
-            # If we permute the input slightly, the output should be similar
-            noise_v = v_tensor + torch.randn_like(v_tensor) * 0.05
-            noise_a = a_tensor + torch.randn_like(a_tensor) * 0.05
-            unified_noisy = self.network(noise_v, noise_a)
-            total_loss = 1.0 - nn.functional.cosine_similarity(unified, unified_noisy, dim=-1).mean()
-
-        self.optimizer.zero_grad()
-        total_loss.backward()
-        self.optimizer.step()
-
-        self._training_steps += 1
-        self._total_loss += total_loss.item()
-
-        return total_loss.item()
+        return 0.0
 
     def _prepare_tensors(self, visual: Optional[np.ndarray],
                          auditory: Optional[np.ndarray]) -> Tuple[torch.Tensor, torch.Tensor]:
