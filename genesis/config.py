@@ -62,6 +62,13 @@ class CortexConfig:
     max_context_memories: int = 5            # How many memories to include in context
     temperature: float = 0.7
     max_response_tokens: int = 256
+    grammar_mode: str = "llm"                # "llm" or "tabula_rasa"
+
+    # Continuous consciousness
+    visual_interval_sec: float = 2.0         # How often the eyes look
+    thought_interval_sec: float = 10.0       # How often spontaneous thoughts occur
+    curiosity_threshold: float = 0.7         # Novelty needed to trigger a question
+    curiosity_cooldown_sec: float = 15.0     # Min seconds between curiosity questions
 
 
 @dataclass
