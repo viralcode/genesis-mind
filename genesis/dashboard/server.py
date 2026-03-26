@@ -144,7 +144,33 @@ class DashboardServer:
                 }
             }
             
-            # 9. Memory Storage
+            # 9. Neural Network Graph (Semantic/Binding visual map)
+            nodes = []
+            edges = []
+            if hasattr(mind, 'semantic_memory') and mind.semantic_memory:
+                try:
+                    concepts = mind.semantic_memory.get_all_concepts()
+                    for c in concepts:
+                        nodes.append({
+                            "id": c.word, 
+                            "label": c.word, 
+                            "group": "concept", 
+                            "value": getattr(c, 'strength', 1.0)
+                        })
+                        for rel in getattr(c, 'relationships', []):
+                            edges.append({"from": c.word, "to": rel})
+                except Exception as e:
+                    logger.error("Failed to build semantic map: %s", e)
+            
+            state["network_graph"] = {"nodes": nodes, "edges": edges}
+            
+            # 10. Activity Stream
+            stream = []
+            if hasattr(mind, '_activity_stream'):
+                stream = mind._activity_stream[-30:]  # Last 30 events
+            state["stream"] = stream
+            
+            # 11. Memory Storage
             state["memory"] = {
                 "semantic_concepts": mind.semantic_memory.count(),
                 "episodic_count": mind.episodic_memory.count(),

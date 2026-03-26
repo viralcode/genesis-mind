@@ -199,6 +199,19 @@ class BrainDaemon:
 
     def _emit(self, message: str, prefix: str = "💭"):
         """Emit a message from the brain to the outside world."""
+        if not hasattr(self.mind, "_activity_stream"):
+            self.mind._activity_stream = []
+            
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        self.mind._activity_stream.append({
+            "time": timestamp,
+            "prefix": prefix,
+            "message": message
+        })
+        if len(self.mind._activity_stream) > 50:
+            self.mind._activity_stream.pop(0)
+
         if self._output_callback:
             self._output_callback(f"  Genesis: {prefix} {message}")
         logger.info("[brain] %s %s", prefix, message)

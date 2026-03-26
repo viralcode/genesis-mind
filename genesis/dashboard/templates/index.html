@@ -6,8 +6,9 @@
     <title>Genesis Mind V5 — Neural Dashboard</title>
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <!-- Chart.js -->
+    <!-- Chart.js and Vis.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     <!-- Custom Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
@@ -43,6 +44,14 @@
             <section class="glass-panel">
                 <h2><i class="icon">👁️</i> Sensory Streams</h2>
                 <div class="threads-grid" id="senses-container">
+                    <!-- Javascript populates this -->
+                </div>
+            </section>
+            
+            <!-- Activity Stream -->
+            <section class="glass-panel">
+                <h2><i class="icon">💭</i> Activity Stream</h2>
+                <div class="stream-container" id="activity-stream">
                     <!-- Javascript populates this -->
                 </div>
             </section>
@@ -149,6 +158,19 @@
                 
             </section>
             
+        </div>
+        
+        <!-- Bottom Row: Neural Visualizer -->
+        <div class="col" style="grid-column: 1 / -1;">
+            <section class="glass-panel" style="min-height: 500px;">
+                <div class="panel-header">
+                    <h2><i class="icon">🕸</i> Neural Binding Graph</h2>
+                    <span class="capacity-tag"><span id="node-count">0</span> Nodes</span>
+                </div>
+                <div class="chart-container" id="network-canvas" style="height: 450px; background: rgba(0,0,0,0.3); border-radius: 8px;">
+                    <!-- Vis.js canvas goes here -->
+                </div>
+            </section>
         </div>
         
     </main>

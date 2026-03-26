@@ -11,6 +11,42 @@ const wmContainer = document.getElementById('wm-container');
 const wmUsage = document.getElementById('wm-usage');
 const wmCapacity = document.getElementById('wm-capacity');
 const hiddenStateContainer = document.getElementById('hidden-state-container');
+const activityStream = document.getElementById('activity-stream');
+const nodeCount = document.getElementById('node-count');
+
+// Vis Network configuration
+let network = null;
+let nodesData = new vis.DataSet([]);
+let edgesData = new vis.DataSet([]);
+const networkContainer = document.getElementById('network-canvas');
+
+const networkOptions = {
+    nodes: {
+        shape: 'dot',
+        size: 16,
+        font: { size: 12, color: '#f0f0f5', face: 'Inter' },
+        borderWidth: 2,
+        color: {
+            background: 'rgba(79, 195, 247, 0.2)',
+            border: '#4fc3f7',
+            highlight: { background: '#4fc3f7', border: '#fff' }
+        }
+    },
+    edges: {
+        width: 1,
+        color: { color: 'rgba(255,255,255,0.1)', highlight: '#4fc3f7' },
+        smooth: { type: 'continuous' }
+    },
+    physics: {
+        barnesHut: { gravitationalConstant: -2000, centralGravity: 0.3, springLength: 95 }
+    }
+};
+
+function initNetwork() {
+    if (networkContainer && !network) {
+        network = new vis.Network(networkContainer, {nodes: nodesData, edges: edgesData}, networkOptions);
+    }
+}
 
 // Stats Elements
 const conceptCount = document.getElementById('concept-count');
@@ -147,6 +183,50 @@ function updateUI(state) {
         `;
     }
 
+    // Activity Stream
+    if (state.stream && activityStream) {
+        // Only autoscroll if user is already at the bottom
+        let isScrolledToBottom = activityStream.scrollHeight - activityStream.clientHeight <= activityStream.scrollTop + 5;
+        
+        // Prevent unnecessary DOM writes if nothing changed (basic length check for efficiency)
+        if (activityStream.children.length !== state.stream.length || state.stream.length > 0) {
+            let html = '';
+            state.stream.forEach(item => {
+                const sourceClass = item.prefix === '💭' ? 'thought' : item.prefix === '👂' ? 'heard' : 'dream';
+                const label = item.prefix === '💭' ? 'THOUGHT' : item.prefix === '👂' ? 'PERCEPTION' : 'SYSTEM';
+                html += `
+                    <div class="stream-item ${sourceClass}">
+                        <div class="stream-time">
+                            <span class="stream-source">${label}</span>
+                            <span>${item.time}</span>
+                        </div>
+                        <div>${item.prefix} ${item.message}</div>
+                    </div>
+                `;
+            });
+            activityStream.innerHTML = html;
+            if (isScrolledToBottom) {
+                activityStream.scrollTop = activityStream.scrollHeight;
+            }
+        }
+    }
+
+    // Network Graph
+    if (state.network_graph) {
+        if (nodeCount) nodeCount.textContent = state.network_graph.nodes.length;
+        
+        // Update nodes and edges dynamically
+        nodesData.update(state.network_graph.nodes);
+        
+        // Edges need a unique ID to be updated cleanly without duplicating
+        const formattedEdges = state.network_graph.edges.map(e => ({
+            id: `${e.from}-${e.to}`,
+            from: e.from,
+            to: e.to
+        }));
+        edgesData.update(formattedEdges);
+    }
+
     // Working Memory
     if (state.working_memory) {
         wmUsage.textContent = state.working_memory.usage;
@@ -249,6 +329,7 @@ async function fetchState() {
 window.addEventListener('DOMContentLoaded', () => {
     initHiddenStateViz();
     initCharts();
+    initNetwork();
     
     // Poll every 1 second
     setInterval(fetchState, 1000);

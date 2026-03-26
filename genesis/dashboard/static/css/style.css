@@ -220,6 +220,38 @@ h2 {
 .wm-meta { display: flex; gap: 0.5rem; font-size: 0.7rem; color: var(--text-muted); }
 .wm-salience { color: var(--dopamine); }
 
+/* Activity Stream */
+.stream-container {
+    max-height: 250px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    padding-right: 0.5rem;
+}
+.stream-container::-webkit-scrollbar { width: 4px; }
+.stream-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+.stream-item {
+    background: rgba(0,0,0,0.3);
+    padding: 0.6rem;
+    border-radius: 6px;
+    border-left: 3px solid var(--text-muted);
+}
+.stream-item.thought { border-color: var(--dopamine); }
+.stream-item.heard { border-color: var(--accent); }
+.stream-item.dream { border-color: var(--oxytocin); }
+
+.stream-time { 
+    font-size: 0.65rem; 
+    color: var(--text-muted); 
+    display: flex; 
+    justify-content: space-between;
+    margin-bottom: 0.2rem;
+}
+.stream-source { text-transform: uppercase; letter-spacing: 0.5px; }
+
 /* Charts */
 .large-chart {
     flex: 1;
