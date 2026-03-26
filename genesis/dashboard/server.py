@@ -76,6 +76,8 @@ class DashboardServer:
                 "phase_name": mind.development.current_phase_name,
                 "age_seconds": (datetime.now() - datetime.fromisoformat(mind.axioms.birth_time)).total_seconds() if hasattr(mind, 'axioms') else 0,
                 "grammar_mode": mind.grammar.mode,
+                "is_sleeping": getattr(mind.sleep_cycle, 'is_sleeping', False) if hasattr(mind, 'sleep_cycle') else False,
+                "current_sleep_phase": getattr(mind.sleep_cycle, 'current_phase_name', 'awake') if hasattr(mind, 'sleep_cycle') else 'awake',
             }
             
             # 2. Neurochemistry (4 functional chemicals)

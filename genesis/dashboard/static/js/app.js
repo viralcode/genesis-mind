@@ -24,35 +24,56 @@ const brainOptions = {
     nodes: {
         shape: 'dot',
         borderWidth: 0,
-        color: { background: 'rgba(79, 195, 247, 0.2)' }
+        font: { color: 'rgba(255,255,255,0.7)', size: 12 }
     },
     edges: {
         width: 1,
         color: 'rgba(255,255,255,0.08)',
-        smooth: false
+        smooth: { type: 'cubicBezier' }
     },
     groups: {
-        input: { size: 14, color: {background: 'rgba(239, 83, 80, 0.7)'} },
+        label: { shape: 'text', font: {size: 20} },
+        senses: { size: 20, color: {background: 'rgba(239, 83, 80, 0.8)'} },
+        limbic: { size: 20, color: {background: 'rgba(255, 152, 0, 0.8)'} },
+        memory: { size: 15, color: {background: 'rgba(186, 104, 200, 0.8)'} },
         hidden: { size: 8, color: {background: 'rgba(79, 195, 247, 0.1)'} },
         output: { size: 14, color: {background: 'rgba(255, 213, 79, 0.7)'} }
     },
-    physics: false, // Freeze physics to keep architecture rigid
+    physics: false, // Absolutely essential for rigid 128 nodes
     interaction: { zoomView: true, dragView: true }
 };
 
 function initNetwork() {
     if (!networkContainer) return;
     
-    // Build the 144-node Neural Architecture
+    // Build the V5.3 Global Neural Architecture
     let nodes = [];
     let edges = [];
     
-    // 1. Sensory Input Layer (8 nodes)
-    for (let i = 0; i < 8; i++) {
-        nodes.push({id: `in_${i}`, label: '', group: 'input', x: -400, y: (i * 50) - 175, title: `Sensory/Limbic Node ${i}`});
-    }
+    // Add Title Labels for regions
+    nodes.push({id: 'label_senses', label: 'SENSES\nVision/Audio/Body', group: 'label', x: -800, y: -250, font: {size: 16, color: '#fff'}});
+    nodes.push({id: 'label_limbic', label: 'LIMBIC SYSTEM\nEmotions & Drives', group: 'label', x: -500, y: -250, font: {size: 16, color: '#fff'}});
+    nodes.push({id: 'label_memory', label: 'MEMORY & DREAMS\nSemantic & Episodic', group: 'label', x: -150, y: -250, font: {size: 16, color: '#fff'}});
+    nodes.push({id: 'label_hidden', label: 'SUBCONSCIOUS CORE\n128-dim GRU', group: 'label', x: 250, y: -250, font: {size: 16, color: '#fff'}});
+    nodes.push({id: 'label_world', label: 'WORLD MODEL\nPredictions', group: 'label', x: 650, y: -250, font: {size: 16, color: '#fff'}});
+
+    // 1. Sensory Input Layer (3 nodes)
+    nodes.push({id: 'sens_vision', label: 'Vision', group: 'senses', x: -800, y: -100});
+    nodes.push({id: 'sens_audio', label: 'Audio', group: 'senses', x: -800, y: 0});
+    nodes.push({id: 'sens_body', label: 'Body', group: 'senses', x: -800, y: 100});
     
-    // 2. Hidden State (128 nodes, 16x8 grid)
+    // 2. Limbic System Layer (3 nodes: Dopamine, Cortisol, Pineal/Sleep)
+    nodes.push({id: 'limbic_vta', label: 'VTA (Reward)', group: 'limbic', x: -500, y: -100});
+    nodes.push({id: 'limbic_amygdala', label: 'Amygdala (Fear)', group: 'limbic', x: -500, y: 0});
+    nodes.push({id: 'limbic_pineal', label: 'Pineal (Sleep)', group: 'limbic', x: -500, y: 100});
+    
+    // Wiring Senses -> Limbic
+    edges.push({from: 'sens_vision', to: 'limbic_vta'});
+    edges.push({from: 'sens_audio', to: 'limbic_amygdala'});
+    edges.push({from: 'sens_body', to: 'limbic_pineal'});
+    edges.push({from: 'sens_body', to: 'limbic_vta'});
+    
+    // 3. Hidden State (128 nodes, 16x8 grid) at X: 100
     let hIdx = 0;
     for (let col = 0; col < 16; col++) {
         for (let row = 0; row < 8; row++) {
@@ -60,7 +81,7 @@ function initNetwork() {
                 id: `h_${hIdx}`, 
                 label: '', 
                 group: 'hidden', 
-                x: -200 + (col * 25), 
+                x: 100 + (col * 25), 
                 y: (row * 30) - 105,
                 title: `Hidden Activation (GRU Unit ${hIdx})`
             });
@@ -68,34 +89,31 @@ function initNetwork() {
         }
     }
     
-    // 3. World Model / Output (8 nodes)
-    for (let i = 0; i < 8; i++) {
-        nodes.push({id: `out_${i}`, label: '', group: 'output', x: 250, y: (i * 50) - 175, title: `World Model Prediction Node ${i}`});
+    // Wiring Limbic -> Hidden
+    for (let row = 0; row < 8; row++) {
+        edges.push({from: 'limbic_vta', to: `h_${row}`});
+        edges.push({from: 'limbic_amygdala', to: `h_${row}`});
+        edges.push({from: 'limbic_pineal', to: `h_${row}`});
     }
 
-    // Wiring Input -> Hidden
-    for (let i = 0; i < 8; i++) {
-        for (let col = 0; col < 2; col++) {
-            for (let row = 0; row < 8; row++) {
-                if (Math.random() > 0.6) edges.push({from: `in_${i}`, to: `h_${col*8 + row}`});
-            }
-        }
-    }
     // Wiring Hidden -> Hidden (Dense-like)
     for (let col = 0; col < 15; col++) {
         for (let row = 0; row < 8; row++) {
             if (Math.random() > 0.4) {
-                // connect to next column
                 edges.push({from: `h_${col*8 + row}`, to: `h_${(col+1)*8 + Math.floor(Math.random()*8)}`});
             }
         }
     }
+    
+    // 4. World Model / Output (8 nodes) at X: 650
+    for (let i = 0; i < 8; i++) {
+        nodes.push({id: `out_${i}`, label: `P_${i}`, group: 'output', x: 650, y: (i * 30) - 105, title: `Prediction Node ${i}`});
+    }
+
     // Wiring Hidden -> Output
     for (let i = 0; i < 8; i++) {
-        for (let col = 14; col < 16; col++) {
-            for (let row = 0; row < 8; row++) {
-                if (Math.random() > 0.6) edges.push({from: `h_${col*8 + row}`, to: `out_${i}`});
-            }
+        for (let row = 0; row < 8; row++) {
+            if (Math.random() > 0.6) edges.push({from: `h_${15*8 + row}`, to: `out_${i}`});
         }
     }
 
@@ -145,7 +163,7 @@ function initCharts() {
         emotionChart = new Chart(ctxEmotion, {
             type: 'radar',
             data: {
-                labels: ['Joy', 'Fear', 'Anger', 'Sadness', 'Trust', 'Disgust', 'Anticipation', 'Surprise'],
+                labels: ['Joy', 'Excitement', 'Trust', 'Anger', 'Surprise', 'Disgust', 'Interest', 'Love'],
                 datasets: [{
                     label: 'Current Emotional Vector',
                     data: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -280,13 +298,92 @@ function updateUI(state) {
 
     // Network Graph Real-Time Neural Activations update
     if (network && state.neural && state.neural.layer3_personality) {
-        if (nodeCount) nodeCount.textContent = 144; // Total nodes simulated
+        if (nodeCount) nodeCount.textContent = "Mega Model"; // Total nodes simulated
         
-        const hs = state.neural.layer3_personality.hidden_state_activation || [];
-        const loss = state.neural.layer4_world_model.last_loss || 0;
         let updates = [];
+        const isSleeping = state.core.is_sleeping || false;
+        const sleepPhase = state.core.current_sleep_phase || 'awake';
         
-        // Flash hidden layer neurons based on live model hidden state
+        // 1. Map Sensory State
+        const inputNoise = isSleeping ? 0.1 : (Math.random() * 0.4 + 0.3);
+        const inputSize = isSleeping ? 10 : (15 + (Math.random() * 5));
+        if (nodesData.get('sens_vision')) {
+            updates.push({id: 'sens_vision', size: inputSize, color: {background: `rgba(239, 83, 80, ${inputNoise})`}});
+            updates.push({id: 'sens_audio', size: inputSize, color: {background: `rgba(239, 83, 80, ${inputNoise})`}});
+            updates.push({id: 'sens_body', size: inputSize, color: {background: `rgba(239, 83, 80, ${inputNoise})`}});
+        }
+        
+        // 2. Map Limbic State
+        if (state.neurochemistry && nodesData.get('limbic_vta')) {
+            const dopa = state.neurochemistry.dopamine || 0;
+            const cort = state.neurochemistry.cortisol || 0;
+            const pinealGlow = isSleeping ? 1.0 : 0.1;
+            updates.push({id: 'limbic_vta', size: 10 + (dopa*20), color: {background: `rgba(255, 152, 0, ${0.2 + dopa})`}});
+            updates.push({id: 'limbic_amygdala', size: 10 + (cort*20), color: {background: `rgba(239, 83, 80, ${0.2 + cort})`}});
+            updates.push({id: 'limbic_pineal', size: 10 + (pinealGlow*10), color: {background: `rgba(186, 104, 200, ${0.2 + pinealGlow})`}});
+        }
+        
+        // 3. Render Memory Network (Center Zone)
+        if (state.network_graph && state.network_graph.nodes) {
+            let memoryNodes = [];
+            let memoryEdges = [];
+            const totalMem = state.network_graph.nodes.length;
+            
+            // Generate circular layout
+            state.network_graph.nodes.forEach((n, idx) => {
+                const angle = (idx / totalMem) * Math.PI * 2;
+                const radius = 60 + (idx * 2); 
+                memoryNodes.push({
+                    id: `mem_${n.id}`, 
+                    label: n.label,
+                    group: 'memory',
+                    x: -150 + Math.cos(angle) * Math.min(radius, 150),
+                    y: Math.sin(angle) * Math.min(radius, 150),
+                    title: n.title
+                });
+            });
+            
+            state.network_graph.edges.forEach(e => {
+                memoryEdges.push({
+                    id: `e_${e.from}_${e.to}`,
+                    from: `mem_${e.from}`,
+                    to: `mem_${e.to}`,
+                    color: 'rgba(186, 104, 200, 0.3)'
+                });
+            });
+
+            // Synchronize with DataSet (Diff heavily to prevent crashing layout)
+            const existingMems = nodesData.get({filter: item => item.id.toString().startsWith('mem_')});
+            const existingMemEdges = edgesData.get({filter: item => item.id && item.id.toString().startsWith('e_')}); 
+            
+            // Only rebuild the memory cloud if the number of concepts changed
+            if (existingMems.length !== memoryNodes.length) {
+                nodesData.remove(existingMems.map(i => i.id));
+                edgesData.remove(existingMemEdges.map(i => i.id));
+                nodesData.add(memoryNodes);
+                edgesData.add(memoryEdges);
+            }
+            
+            // Pulse Memories!
+            const memoryNodesCurrent = nodesData.get({filter: item => item.id.toString().startsWith('mem_')});
+            if (sleepPhase === 'rem_dreaming') {
+                memoryNodesCurrent.forEach(n => {
+                    if (Math.random() > 0.8) {
+                        updates.push({id: n.id, size: 25, color: {background: `rgba(255, 255, 255, 1.0)`}});
+                    } else {
+                        updates.push({id: n.id, size: 12, color: {background: `rgba(186, 104, 200, 0.4)`}});
+                    }
+                });
+            } else {
+                // Gentle pulse for waking recall
+                memoryNodesCurrent.forEach(n => {
+                    updates.push({id: n.id, size: 12 + (Math.random()*3), color: {background: `rgba(186, 104, 200, 0.8)`}});
+                });
+            }
+        }
+
+        // 4. Update 128-dim Personality Core Hidden State
+        const hs = state.neural.layer3_personality.hidden_state_activation || [];
         for (let i = 0; i < hs.length && i < 128; i++) {
             const val = hs[i];
             const intensity = Math.min(Math.max((val + 1) / 2, 0.1), 1);
@@ -297,14 +394,11 @@ function updateUI(state) {
             });
         }
         
-        // Pulse Sensory and World Model randomly or based on systemic noise
-        const inputNoise = Math.random() * 0.4 + 0.3;
+        // 5. Output node flashes based on World Model prediction loss 
+        const loss = state.neural.layer4_world_model.last_loss || 0;
         for (let i=0; i<8; i++) {
-            updates.push({id: `in_${i}`, size: 12 + (Math.random() * 6), color: {background: `rgba(239, 83, 80, ${inputNoise + (Math.random()*0.3)})`}});
-            
-            // Output node flashes based on World Model prediction loss 
             const outIntensity = Math.min(0.2 + (loss * 10), 0.9) + (Math.random()*0.2);
-            updates.push({id: `out_${i}`, size: 12 + (Math.random() * 4), color: {background: `rgba(255, 213, 79, ${outIntensity})`}});
+            updates.push({id: `out_${i}`, size: 10 + (Math.random() * 4), color: {background: `rgba(255, 213, 79, ${outIntensity})`}});
         }
         
         if (nodesData.get('h_0')) {

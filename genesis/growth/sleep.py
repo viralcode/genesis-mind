@@ -87,6 +87,8 @@ class SleepCycle:
         self._experiences_since_sleep: int = 0
         self._total_dreams: int = 0
         self._dream_discoveries: int = 0
+        self.is_sleeping: bool = False
+        self.current_phase_name: str = "awake"
 
         logger.info("Multi-phase sleep initialized (4 phases, %d dream recombinations)",
                      dream_recombinations)
@@ -126,24 +128,29 @@ class SleepCycle:
             "episodes_before": episodic_memory.count(),
             "phases": {},
         }
+        self.is_sleeping = True
 
         # ── Phase 1: Light Sleep (Decay & Pruning) ─────────────────
+        self.current_phase_name = "light_sleep"
         phase1 = self._phase_light_sleep(semantic_memory, phonetics_engine,
                                          neurochemistry)
         report["phases"]["light_sleep"] = phase1
 
         # ── Phase 2: Deep Sleep (Consolidation) ───────────────────
+        self.current_phase_name = "deep_sleep"
         phase2 = self._phase_deep_sleep(semantic_memory, episodic_memory,
                                         subconscious, hippocampus,
                                         neurochemistry)
         report["phases"]["deep_sleep"] = phase2
 
         # ── Phase 3: REM (Dreaming & Recombination) ───────────────
+        self.current_phase_name = "rem_dreaming"
         phase3 = self._phase_rem_dreaming(semantic_memory, subconscious,
                                           neurochemistry)
         report["phases"]["rem_dreaming"] = phase3
 
         # ── Phase 4: Integration (Self-evaluation) ────────────────
+        self.current_phase_name = "integration"
         phase4 = self._phase_integration(semantic_memory, episodic_memory,
                                          neurochemistry)
         report["phases"]["integration"] = phase4
@@ -159,6 +166,8 @@ class SleepCycle:
         self._last_sleep = datetime.now().isoformat()
         self._last_sleep_time = time.time()
         self._experiences_since_sleep = 0
+        self.is_sleeping = False
+        self.current_phase_name = "awake"
 
         logger.info("╔══════════════════════════════════════════════════════╗")
         logger.info("║      MULTI-PHASE SLEEP CYCLE COMPLETE               ║")
