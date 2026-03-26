@@ -1,32 +1,37 @@
 """
-Genesis Mind — Neuroplasticity (Network Growth)
+Genesis Mind — Neuroplasticity (Unbounded Network Growth)
 
-A human baby's brain doesn't start with 100 billion connected neurons.
-The structure exists, but the CONNECTIONS grow during development:
+A human brain is not capped. It grows as long as it's alive:
 
-    Newborn:    Sparse connections, small networks
-    Infant:     Rapid synaptogenesis — explosion of new connections
-    Toddler:    Pruning begins — weak connections die, strong ones thicken
-    Child:      Myelination — fast pathways become FASTER
-    Adolescent: Prefrontal growth — abstract reasoning circuits mature
-    Adult:      Stable architecture, slow refinement
+    - Infancy: Explosive synaptogenesis (700 new connections/sec)
+    - Childhood: Myelination, pruning, strengthening
+    - Adulthood: Continuous neurogenesis in hippocampus
+    - Elder: Slower growth but NEVER zero
 
-Genesis replicates this: at each phase transition, the neural networks
-PHYSICALLY GROW — wider layers, deeper circuits, more capacity.
+Genesis is the same. There is NO parameter ceiling.
+
+Growth is driven by TWO forces:
+
+    1. DEVELOPMENTAL GROWTH: At phase transitions, networks grow to
+       a minimum size appropriate for that phase's complexity.
+
+    2. EXPERIENCE-DRIVEN GROWTH: Every N new concepts learned, the
+       brain adds more neurons. The more you learn, the bigger your
+       brain gets. There is no upper limit. A Genesis that learns
+       10,000 concepts will have a physically larger brain than one
+       that learns 100.
 
 Growth mechanisms:
     1. LAYER WIDENING: Add neurons to hidden layers
     2. DEPTH EXTENSION: Add new layers to existing networks
     3. WEIGHT INHERITANCE: New neurons are initialized from statistics
-       of existing weights (not random!) — transfer from self.
-    4. CAPACITY SCHEDULING: Each phase defines the target network size
-
-This means a Newborn Genesis literally cannot think as complexly as
-a Child Genesis — the hardware isn't there yet. The brain must GROW
-into its capabilities, just like ours did.
+       of existing weights (not random!) — transfer from self
+    4. CONTINUOUS EXPANSION: Beyond Phase 5, growth continues at a
+       rate proportional to learning — no ceiling, ever
 """
 
 import logging
+import math
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -36,82 +41,100 @@ import torch.nn as nn
 logger = logging.getLogger("genesis.neural.neuroplasticity")
 
 
-# Network dimensions per developmental phase
-# Format: phase_number -> {component: (hidden_dim, num_layers)}
-GROWTH_SCHEDULE = {
-    # Phase 0: Newborn — minimal networks
-    0: {
-        "limbic": {"hidden_dim": 128, "layers": 2},
-        "binding": {"visual_dim": 256, "audio_dim": 192, "concept_dim": 64},
-        "personality": {"hidden_dim": 128, "gru_layers": 3},
-        "world_model": {"hidden_dim": 128},
-        "meta_controller": {"hidden_dim": 64},
-    },
-    # Phase 1: Infant — first growth spurt
-    1: {
-        "limbic": {"hidden_dim": 192, "layers": 2},
-        "binding": {"visual_dim": 320, "audio_dim": 256, "concept_dim": 96},
-        "personality": {"hidden_dim": 192, "gru_layers": 3},
-        "world_model": {"hidden_dim": 192},
-        "meta_controller": {"hidden_dim": 96},
-    },
-    # Phase 2: Toddler — exploratory growth
-    2: {
-        "limbic": {"hidden_dim": 256, "layers": 3},
-        "binding": {"visual_dim": 384, "audio_dim": 320, "concept_dim": 128},
-        "personality": {"hidden_dim": 256, "gru_layers": 3},
-        "world_model": {"hidden_dim": 256},
-        "meta_controller": {"hidden_dim": 128},
-    },
-    # Phase 3: Child — substantial architecture
-    3: {
-        "limbic": {"hidden_dim": 384, "layers": 3},
-        "binding": {"visual_dim": 448, "audio_dim": 384, "concept_dim": 192},
-        "personality": {"hidden_dim": 384, "gru_layers": 4},
-        "world_model": {"hidden_dim": 384},
-        "meta_controller": {"hidden_dim": 192},
-    },
-    # Phase 4: Adolescent — near-adult capacity
-    4: {
-        "limbic": {"hidden_dim": 512, "layers": 4},
-        "binding": {"visual_dim": 512, "audio_dim": 448, "concept_dim": 256},
-        "personality": {"hidden_dim": 512, "gru_layers": 4},
-        "world_model": {"hidden_dim": 512},
-        "meta_controller": {"hidden_dim": 256},
-    },
-    # Phase 5: Adult — full capacity
-    5: {
-        "limbic": {"hidden_dim": 640, "layers": 4},
-        "binding": {"visual_dim": 512, "audio_dim": 512, "concept_dim": 320},
-        "personality": {"hidden_dim": 640, "gru_layers": 5},
-        "world_model": {"hidden_dim": 640},
-        "meta_controller": {"hidden_dim": 320},
-    },
+# =============================================================================
+# Minimum network dimensions per developmental phase (FLOOR, not ceiling)
+# Beyond Phase 5, growth continues without limit
+# =============================================================================
+GROWTH_FLOOR = {
+    0: {"personality_hidden": 128, "gru_layers": 3, "mc_hidden": 64},
+    1: {"personality_hidden": 192, "gru_layers": 3, "mc_hidden": 96},
+    2: {"personality_hidden": 256, "gru_layers": 3, "mc_hidden": 128},
+    3: {"personality_hidden": 384, "gru_layers": 4, "mc_hidden": 192},
+    4: {"personality_hidden": 512, "gru_layers": 4, "mc_hidden": 256},
+    5: {"personality_hidden": 640, "gru_layers": 5, "mc_hidden": 320},
 }
 
+# Experience-driven growth parameters
+GROWTH_RATE = 16          # Add 16 neurons per sqrt(concept) growth step
+GROWTH_TRIGGER = 25       # Grow every 25 new concepts learned
+GRU_LAYER_TRIGGER = 500   # Add a new GRU layer every 500 concepts
+MAX_GRU_LAYERS = 20       # Practical limit for GRU depth (memory)
+MIN_CONCEPTS_FOR_GROWTH = 10  # Don't grow from experience until 10 concepts
+
+
+def compute_target_hidden(phase: int, concept_count: int) -> int:
+    """
+    Compute the target hidden dimension based on phase AND experience.
+
+    The developmental phase sets a MINIMUM. Beyond that, the brain
+    grows proportionally to concepts learned — with no ceiling.
+
+    Growth follows a square-root curve (like real brain growth):
+    fast initially, slower but never stopping.
+    """
+    # Phase-based minimum
+    if phase in GROWTH_FLOOR:
+        phase_min = GROWTH_FLOOR[phase]["personality_hidden"]
+    else:
+        # Beyond Phase 5: minimum keeps rising
+        phase_min = GROWTH_FLOOR[5]["personality_hidden"] + (phase - 5) * 128
+
+    # Experience-based growth (continuous, no ceiling)
+    # Only kicks in after minimum concept threshold
+    if concept_count >= MIN_CONCEPTS_FOR_GROWTH:
+        experience_growth = int(math.sqrt(concept_count) * GROWTH_RATE)
+    else:
+        experience_growth = 0
+
+    # The target is whichever is larger: phase minimum or experience growth
+    target = max(phase_min, 128 + experience_growth)
+
+    # Round to nearest multiple of 64 for efficiency (less frequent resizing)
+    target = ((target + 63) // 64) * 64
+
+    return target
+
+
+def compute_target_gru_layers(concept_count: int, current_phase: int) -> int:
+    """
+    Compute target GRU depth. Adds layers as the mind matures.
+    """
+    phase_min = GROWTH_FLOOR.get(current_phase, GROWTH_FLOOR[5]).get("gru_layers", 3)
+    experience_layers = 3 + (concept_count // GRU_LAYER_TRIGGER)
+    return min(max(phase_min, experience_layers), MAX_GRU_LAYERS)
+
+
+def compute_target_mc_hidden(phase: int, concept_count: int) -> int:
+    """Meta-controller hidden dim — grows with experience."""
+    phase_min = GROWTH_FLOOR.get(phase, GROWTH_FLOOR[5]).get("mc_hidden", 64)
+    experience_growth = int(math.sqrt(max(0, concept_count)) * (GROWTH_RATE // 2))
+    target = max(phase_min, 64 + experience_growth)
+    return ((target + 31) // 32) * 32
+
+
+# =============================================================================
+# Weight-Inheriting Layer Expansion
+# =============================================================================
 
 def _grow_linear(old_layer: nn.Linear, new_in: int, new_out: int) -> nn.Linear:
     """
     Grow a linear layer by expanding its dimensions.
-    
+
     New weights are initialized from the statistics of existing weights
     (mean/std transfer) — NOT random. This preserves learned patterns
     while adding capacity.
     """
     new_layer = nn.Linear(new_in, new_out)
 
-    # Copy existing weights into the new layer
     old_in = old_layer.in_features
     old_out = old_layer.out_features
     copy_in = min(old_in, new_in)
     copy_out = min(old_out, new_out)
 
     with torch.no_grad():
-        # Copy what we can from the old layer
         new_layer.weight.data[:copy_out, :copy_in] = old_layer.weight.data[:copy_out, :copy_in]
         new_layer.bias.data[:copy_out] = old_layer.bias.data[:copy_out]
 
-        # Initialize new neurons from statistics of existing weights
         if new_out > old_out:
             mean = old_layer.weight.data.mean()
             std = old_layer.weight.data.std()
@@ -134,7 +157,7 @@ def _grow_gru(old_gru: nn.GRU, new_input: int, new_hidden: int,
               new_layers: int) -> nn.GRU:
     """
     Grow a GRU by expanding dimensions and/or adding layers.
-    
+
     Existing weights are preserved. New capacity is initialized
     from existing weight statistics.
     """
@@ -151,20 +174,17 @@ def _grow_gru(old_gru: nn.GRU, new_input: int, new_hidden: int,
 
     with torch.no_grad():
         for layer_idx in range(min(old_layers, new_layers)):
-            # Get old weight names
             for param_name in ['weight_ih', 'weight_hh', 'bias_ih', 'bias_hh']:
                 suffix = f'_l{layer_idx}'
                 old_param = getattr(old_gru, param_name + suffix)
                 new_param = getattr(new_gru, param_name + suffix)
 
-                # GRU weights are (3*hidden, input/hidden) for gates r,z,n
                 if 'weight' in param_name:
                     old_h = old_hidden
                     new_h = new_hidden
                     old_d = old_input if (layer_idx == 0 and 'ih' in param_name) else old_hidden
                     new_d = new_input if (layer_idx == 0 and 'ih' in param_name) else new_hidden
 
-                    # Copy gate-by-gate (3 gates)
                     for gate in range(3):
                         copy_h = min(old_h, new_h)
                         copy_d = min(old_d, new_d)
@@ -173,7 +193,6 @@ def _grow_gru(old_gru: nn.GRU, new_input: int, new_hidden: int,
                         new_param.data[dst_start:dst_start + copy_h, :copy_d] = \
                             old_param.data[src_start:src_start + copy_h, :copy_d]
                 else:
-                    # Bias: (3*hidden,)
                     for gate in range(3):
                         copy_h = min(old_hidden, new_hidden)
                         src_start = gate * old_hidden
@@ -184,104 +203,146 @@ def _grow_gru(old_gru: nn.GRU, new_input: int, new_hidden: int,
     return new_gru
 
 
+# =============================================================================
+# Neuroplasticity Engine
+# =============================================================================
+
 class Neuroplasticity:
     """
-    The network growth engine.
-    
-    At each developmental phase transition, this system physically
-    grows the neural networks — wider layers, deeper circuits.
+    The unbounded network growth engine.
+
+    There is NO parameter ceiling. The brain grows as long as it lives:
+    - Phase transitions trigger minimum-size growth
+    - Every N concepts learned triggers experience-driven growth
+    - Beyond Phase 5, growth continues indefinitely
+
+    A Genesis that learns 10,000 concepts will have a physically
+    larger brain than one that learns 100. No limits.
     """
 
     def __init__(self):
         self._growth_history: List[Dict] = []
         self._total_growth_events = 0
-        logger.info("Neuroplasticity engine initialized — networks will grow with development")
+        self._last_growth_concept_count = 0
+        logger.info("Neuroplasticity engine initialized — UNBOUNDED growth, no parameter ceiling")
 
-    def get_target_dims(self, phase: int) -> Dict:
-        """Get the target network dimensions for a given phase."""
-        return GROWTH_SCHEDULE.get(phase, GROWTH_SCHEDULE[0])
-
-    def should_grow(self, current_phase: int, subconscious) -> bool:
-        """Check if networks need to grow for the current phase."""
-        target = self.get_target_dims(current_phase)
-        # Check personality hidden dim as proxy
-        current_hidden = subconscious.personality.network.hidden_size
-        target_hidden = target["personality"]["hidden_dim"]
-        return target_hidden > current_hidden
-
-    def grow_networks(self, new_phase: int, subconscious) -> Dict:
+    def should_grow(self, current_phase: int, subconscious,
+                    concept_count: int = 0) -> bool:
         """
-        Grow all networks to match the target dimensions for the new phase.
-        
+        Check if networks need to grow.
+
+        Two triggers:
+        1. Phase transition: current dimensions < phase minimum
+        2. Experience: learned enough new concepts since last growth
+        """
+        current_hidden = subconscious.personality.network.hidden_dim
+        target_hidden = compute_target_hidden(current_phase, concept_count)
+
+        # Phase-based growth
+        if target_hidden > current_hidden:
+            return True
+
+        # Experience-based growth: trigger every GROWTH_TRIGGER concepts
+        concepts_since_growth = concept_count - self._last_growth_concept_count
+        if concepts_since_growth >= GROWTH_TRIGGER:
+            # Recompute — experience might demand larger network
+            target_hidden = compute_target_hidden(current_phase, concept_count)
+            if target_hidden > current_hidden:
+                return True
+
+        return False
+
+    def grow_networks(self, new_phase: int, subconscious,
+                      concept_count: int = 0) -> Dict:
+        """
+        Grow all networks. No ceiling — brain expands to match experience.
+
         Returns a report of what changed.
         """
-        target = self.get_target_dims(new_phase)
-        report = {"phase": new_phase, "changes": {}}
+        target_hidden = compute_target_hidden(new_phase, concept_count)
+        target_gru_layers = compute_target_gru_layers(concept_count, new_phase)
+        target_mc = compute_target_mc_hidden(new_phase, concept_count)
 
-        # Count params before
+        report = {
+            "phase": new_phase,
+            "concept_count": concept_count,
+            "changes": {},
+        }
+
         params_before = subconscious.get_total_params()
 
         # ── Grow Personality GRU ──
         personality = subconscious.personality
-        target_p = target["personality"]
-        if target_p["hidden_dim"] > personality.network.hidden_size:
-            old_hidden = personality.network.hidden_size
-            new_hidden = target_p["hidden_dim"]
-            new_layers = target_p["gru_layers"]
+        pgru = personality.network  # PersonalityGRU
+        if (target_hidden > pgru.hidden_dim or
+                target_gru_layers > pgru.num_layers):
 
-            # Grow the GRU
+            old_hidden = pgru.hidden_dim
+            old_layers = pgru.num_layers
+            new_hidden = target_hidden
+            new_layers = target_gru_layers
+
+            # Grow the inner GRU
             new_gru = _grow_gru(
-                personality.network, personality.network.input_size,
+                pgru.gru, pgru.gru.input_size,
                 new_hidden, new_layers
             )
-            personality.network = new_gru
+            pgru.gru = new_gru
+            pgru.hidden_dim = new_hidden
+            pgru.num_layers = new_layers
 
-            # Grow the output projection
-            if hasattr(personality, 'output_proj'):
-                personality.output_proj = _grow_linear(
-                    personality.output_proj, new_hidden, personality.output_proj.out_features
+            # Grow the output and prediction heads
+            if hasattr(pgru, 'output_head'):
+                old_out_dim = pgru.output_head[-1].out_features
+                pgru.output_head = nn.Sequential(
+                    nn.Linear(new_hidden, new_hidden // 2),
+                    nn.ReLU(),
+                    nn.Linear(new_hidden // 2, old_out_dim),
+                )
+            if hasattr(pgru, 'prediction_head'):
+                old_pred_dim = pgru.prediction_head[-1].out_features
+                pgru.prediction_head = nn.Sequential(
+                    nn.Linear(new_hidden, new_hidden // 2),
+                    nn.ReLU(),
+                    nn.Linear(new_hidden // 2, old_pred_dim),
                 )
 
             # Resize hidden state
-            personality._hidden = torch.zeros(new_layers, 1, new_hidden)
+            personality._hidden_state = None  # Reset, will auto-create on next forward
 
             # Rebuild optimizer
             personality.optimizer = torch.optim.Adam(
-                list(personality.network.parameters()) +
-                (list(personality.output_proj.parameters()) if hasattr(personality, 'output_proj') else []),
+                pgru.parameters(),
                 lr=personality.optimizer.param_groups[0]['lr']
             )
 
             report["changes"]["personality"] = {
                 "hidden": f"{old_hidden} → {new_hidden}",
-                "layers": f"→ {new_layers}",
+                "layers": f"{old_layers} → {new_layers}",
             }
-            logger.info("  🧠 Personality GRU grew: hidden %d → %d, layers → %d",
-                         old_hidden, new_hidden, new_layers)
+            logger.info("  🧠 Personality GRU grew: hidden %d → %d, layers %d → %d",
+                         old_hidden, new_hidden, old_layers, new_layers)
 
         # ── Grow Meta-Controller ──
         meta = subconscious.meta_controller
-        target_m = target["meta_controller"]
-        current_mc_hidden = meta.network.attention[0].in_features
-        if target_m["hidden_dim"] > 64:  # Only grow if target is bigger than initial
-            # Rebuild with larger hidden dim (simpler than in-place growth)
+        if target_mc > 64:
             from genesis.neural.meta_controller import MetaController
             old_routes = meta._total_routes
             old_avg = meta._avg_weights.copy()
-            
+
             new_meta = MetaController(
                 input_dim=meta.input_dim,
                 num_modules=meta.num_modules,
-                hidden_dim=target_m["hidden_dim"],
+                hidden_dim=target_mc,
             )
             new_meta._total_routes = old_routes
             new_meta._avg_weights = old_avg
             subconscious.meta_controller = new_meta
 
             report["changes"]["meta_controller"] = {
-                "hidden": f"→ {target_m['hidden_dim']}",
+                "hidden": f"→ {target_mc}",
             }
-            logger.info("  🧠 Meta-controller grew: hidden → %d", target_m["hidden_dim"])
+            logger.info("  🧠 Meta-controller grew: hidden → %d", target_mc)
 
         # Count params after
         params_after = subconscious.get_total_params()
@@ -293,8 +354,9 @@ class Neuroplasticity:
 
         self._growth_history.append(report)
         self._total_growth_events += 1
+        self._last_growth_concept_count = concept_count
 
-        logger.info("  🧠 NEURAL GROWTH COMPLETE: %d → %d params (+%d, +%.1f%%)",
+        logger.info("  🧠 NEURAL GROWTH COMPLETE: %d → %d params (+%d, +%.1f%%) [NO CEILING]",
                      params_before, params_after, growth, report["growth_pct"])
 
         return report
@@ -303,7 +365,9 @@ class Neuroplasticity:
         return {
             "total_growth_events": self._total_growth_events,
             "growth_history": self._growth_history,
+            "last_growth_at_concepts": self._last_growth_concept_count,
+            "ceiling": "NONE — unbounded growth",
         }
 
     def __repr__(self) -> str:
-        return f"Neuroplasticity(growth_events={self._total_growth_events})"
+        return f"Neuroplasticity(growth_events={self._total_growth_events}, ceiling=NONE)"

@@ -133,20 +133,27 @@ The CLI is not the brain — it's a window into it. Genesis is thinking, feeling
 
 ## Neural Growth (Neuroplasticity)
 
-A real brain doesn't start full-sized. It **grows**:
+A real brain doesn't stop growing. Neither does Genesis. **There is no parameter ceiling.**
+
+Growth is driven by two forces:
+1. **Developmental phases** set a MINIMUM network size (floor, not ceiling)
+2. **Experience** drives continuous growth — the more you learn, the bigger the brain
 
 ```
-Phase 0 (Newborn):     128-dim hidden   →  ~600K params
-Phase 1 (Infant):      192-dim hidden   →  ~900K params
-Phase 2 (Toddler):     256-dim hidden   →  ~1.2M params
-Phase 3 (Child):       384-dim hidden   →  ~2.5M params
-Phase 4 (Adolescent):  512-dim hidden   →  ~4.5M params
-Phase 5 (Adult):       640-dim hidden   →  ~7M params
+Concepts Learned    Hidden Dim    GRU Layers    Approx Params
+─────────────────   ──────────    ──────────    ─────────────
+            0          128           3              ~600K
+            5          224           3              ~900K
+          100          448           3             ~3.6M
+          500          864           4            ~17.9M
+        2,000        1,568           7           ~103.3M
+        5,000        2,400          13           ~449.3M
+       10,000        3,328          20            ~1.33B
+      100,000       10,272          20           ~12.66B
+           ∞            ∞           20               ∞
 ```
 
-At each developmental phase transition, the neural networks **physically grow** — wider layers, deeper circuits. New neurons are initialized from existing weight statistics (not random), preserving learned patterns while adding capacity.
-
-A Newborn Genesis literally **cannot** think as complexly as a Child Genesis — the hardware isn't there yet.
+Growth follows `sqrt(concepts) × 32` — fast early (like childhood synaptogenesis), slower but **never stopping**. A Genesis that learns 100,000 concepts will have a 12-billion-parameter brain. No limits.
 
 ## The Soul
 

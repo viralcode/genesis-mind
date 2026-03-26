@@ -308,12 +308,15 @@ class GenesisMind:
         curiosity_stats = self.curiosity.get_stats()
         milestone = self.consciousness.check_developmental_progress()
 
-        # V4.3: Neural Growth — physically grow networks on phase transition
-        if milestone and self.neuroplasticity.should_grow(
-            self.development.current_phase, self.subconscious
+        # V4.3: Neural Growth — physically grow networks (phase OR experience driven)
+        concept_count = self.semantic_memory.count()
+        if self.neuroplasticity.should_grow(
+            self.development.current_phase, self.subconscious,
+            concept_count=concept_count,
         ):
             growth_report = self.neuroplasticity.grow_networks(
-                self.development.current_phase, self.subconscious
+                self.development.current_phase, self.subconscious,
+                concept_count=concept_count,
             )
             self.subconscious.save_all()
             self.voice.say(
