@@ -280,6 +280,13 @@ class BrainDaemon:
             interval_sec=45.0,  # Play/replay every 45 seconds
         )
 
+        # Thread 11: Auditory — always-on microphone listening
+        self._threads["auditory"] = BrainThread(
+            name="auditory",
+            target=self._tick_auditory,
+            interval_sec=0.5,  # Listen continuously (0.5s pause between chunks)
+        )
+
     # =========================================================================
     # Start / Stop
     # =========================================================================
@@ -514,6 +521,64 @@ class BrainDaemon:
         except Exception as e:
             # Camera might not be available — that's OK, we're just blind
             logger.debug("[vision] Camera not available: %s", e)
+
+    # =========================================================================
+    # Thread 11: Auditory (Always-On Microphone)
+    # =========================================================================
+
+    def _tick_auditory(self):
+        """
+        Always-on microphone — Genesis continuously hears the world.
+
+        Blocks its own thread to listen for a chunk of audio, transcribes it 
+        via Whisper, runs it through the attention filter, and if it's salient, 
+        absorbs it into working memory and the neural cascade.
+        """
+        try:
+            ears = self.mind._get_ears()
+            if ears is None:
+                return
+
+            # Listen for 3 seconds
+            result = ears.listen_once(duration_sec=3.0)
+            if not result or not result.is_speech or not result.text:
+                return
+
+            text = result.text.strip()
+            if len(text) > 2:  # Filter out pure noise artifacts
+                self._emit(f"Heard: '{text}'", "👂")
+
+                # 1. Apply Attention Filter
+                salience = self.mind.attention.compute_salience(
+                    text, modality="auditory", 
+                    drive_states=self.mind.drives.get_status()
+                )
+
+                if salience > 0.4:
+                    # 2. Place in Working Memory
+                    self.mind.working_memory.write(text, modal="auditory")
+
+                    # 3. Embed text
+                    try:
+                        # Assuming associations engine is available
+                        embedding = self.mind.subconscious.binding.encode_text(text)
+                    except Exception as e:
+                        logger.debug("[auditory] Text embed failed: %s", e)
+                        return
+
+                    # 4. Neural Cascade (The brain absorbs the speech)
+                    context_vec = self.mind.proprioception.get_context_vector()
+                    self.mind.subconscious.process_experience(
+                        clip_embedding=None,
+                        text_embedding=embedding,
+                        context=context_vec,
+                        train=True,
+                    )
+                    
+                    self.mind.neurochemistry.serotonin.spike(0.02)
+
+        except Exception as e:
+            logger.debug("[auditory] Mic not available: %s", e)
 
     # =========================================================================
     # Thread 8: Emotional State (Continuous Dynamics)
