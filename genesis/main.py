@@ -20,6 +20,8 @@ import signal
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
+
 from genesis.config import GenesisConfig, GENESIS_HOME, MEMORY_DIR, IDENTITY_FILE
 from genesis.axioms import GenesisAxioms
 from genesis.senses.phonetics import PhoneticsEngine
@@ -214,11 +216,22 @@ class GenesisMind:
 
         # V3: Neural cascade — train ALL subconscious networks on this experience
         # We now use the "Evolutionary Hardware" (CLIP + Text embeddings) as input
+        visual_tensor = visual_embedding.astype(np.float32) if visual_embedding is not None else np.zeros(512, dtype=np.float32)
+        audio_tensor = np.array(text_embedding, dtype=np.float32) if text_embedding else np.zeros(384, dtype=np.float32)
+        
         neural_result = self.subconscious.process_experience(
-            clip_embedding=visual_embedding.astype(np.float32) if visual_embedding is not None else None,
-            text_embedding=np.array(text_embedding, dtype=np.float32) if text_embedding else None,
+            clip_embedding=visual_tensor,
+            text_embedding=audio_tensor,
             context=None,
             train=True,
+        )
+
+        # Store the raw experience in the short-term Replay Buffer for offline consolidation
+        self.hippocampus.add_to_replay(
+            visual_latent=visual_tensor,
+            auditory_latent=audio_tensor,
+            limbic_state=neural_result['limbic_response'],
+            concept_embedding=neural_result['concept_embedding']
         )
 
         # Train limbic instinct: "this sensory pattern = positive"
@@ -402,6 +415,13 @@ class GenesisMind:
         )
         self.neurochemistry.on_sleep_consolidation()
         self.curiosity.reset_habituation()
+        
+        # Consolidate neural weights via Replay Buffer
+        batch = self.hippocampus.sample_replay_batch(batch_size=32)
+        if batch:
+            loss = self.subconscious.consolidate_memories(batch)
+            logger.info("Neural consolidation complete. Contrastive loss: %.4f", loss)
+            
         self.subconscious.save_all()
 
         return (
