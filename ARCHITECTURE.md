@@ -1,20 +1,22 @@
-# Genesis Mind V5 — Architecture Deep Dive
+# Genesis Mind V7 — Architecture Deep Dive
 
-> *The weights ARE the personality. The data IS you. The dreams are real.*
+> *The weights ARE the personality. The data IS you. The dreams are real. The voice is neural.*
 
-This document describes the complete technical architecture of Genesis Mind V5: a **biologically realistic** brain simulation with cascading neural networks, 10 autonomous brain threads, Ebbinghaus memory decay, 8-dimensional emotional dynamics, attention/salience filtering, phase-gated language development, and 8 Maslow-inspired drives — all dynamically routed by a learned meta-controller.
+This document describes the complete technical architecture of Genesis Mind V7: a **biologically realistic** brain simulation with cascading neural networks, a **pure neural acoustic pipeline** (no pre-trained STT/TTS/LLM), 11 autonomous brain threads, Ebbinghaus memory decay, 8-dimensional emotional dynamics, attention/salience filtering, phase-gated language development, and 8 Maslow-inspired drives — all dynamically routed by a learned meta-controller.
 
 ---
 
 ## 1. Design Philosophy
 
-Genesis is built on three axioms of cognitive architecture:
+Genesis is built on four axioms of cognitive architecture:
 
 1. **Evolutionary Hardware, Plastic Mind** — Humans are born with pre-wired sensory organs (retina, cochlea) shaped by millions of years of evolution, but the *mind* on top is learned. Genesis uses pre-trained foundation models (CLIP, Whisper) as its "evolutionary hardware" and trains its own small neural networks on top.
 
 2. **Feel Before Think** — In biology, the amygdala fires a neurochemical response *before* the prefrontal cortex even processes a stimulus. Genesis replicates this with a Limbic System (Layer 1) that reacts instantly, followed by slower conscious processing (Layer 3).
 
 3. **Sleep to Remember** — Human memory consolidation happens during sleep via hippocampal replay. Genesis stores every experience in a replay buffer and consolidates via contrastive learning during explicit sleep cycles.
+
+4. **Learn to Speak, Not Download Speech** — V7 removes all pre-trained language models from the speech loop. Genesis discovers phonemes, learns acoustic patterns, and synthesizes speech using its own neural networks. Like a human infant learning to speak by hearing and babbling.
 
 ---
 
@@ -24,16 +26,17 @@ Genesis is built on three axioms of cognitive architecture:
 graph TB
     subgraph SENSES["👁️ SENSES"]
         Eyes["eyes.py<br/>Camera + CLIP"]
-        Ears["ears.py<br/>Mic + Whisper"]
+        Ears["ears.py<br/>Mic → Raw Audio"]
         Phon["phonetics.py<br/>Letter→Sound"]
-        Motor["motor.py<br/>V5: Simulated Motor"]
+        Babble["babbling.py<br/>V6: Babbling Engine"]
+        Motor["motor.py<br/>Simulated Motor"]
     end
 
     subgraph MEMORY["🧠 MEMORY"]
         Hippo["hippocampus.py<br/>ChromaDB Vectors"]
         Sem["semantic.py<br/>Ebbinghaus Decay"]
         Epi["episodic.py<br/>Life Log"]
-        WM["working_memory.py<br/>V5: 7±2 Slots"]
+        WM["working_memory.py<br/>7±2 Slots"]
         Replay["Replay Buffer<br/>deque(10K)"]
     end
 
@@ -44,17 +47,25 @@ graph TB
         L4["Layer 4: World Model<br/>JEPA Surprise"]
     end
 
+    subgraph ACOUSTIC["🔊 V7: ACOUSTIC PIPELINE (1.14M params)"]
+        AC["Auditory Cortex<br/>Mel → Conv1D → 64-dim"]
+        VQ["VQ Codebook<br/>256 Neural Phonemes"]
+        ALM["Acoustic Transformer<br/>4-Layer GPT on Audio Tokens"]
+        VOC["Neural Vocoder<br/>Mel Reconstruction + Griffin-Lim"]
+    end
+
     subgraph CORTEX["🧬 CORTEX"]
         Reason["reasoning.py<br/>Phase-Gated LLM"]
         Assoc["associations.py<br/>Multimodal Binding"]
         Emo["emotions.py<br/>Sentiment Eval"]
         Curious["curiosity.py<br/>Novelty + Habituation"]
         Gram["grammar.py<br/>LLM or N-Gram"]
-        Attn["attention.py<br/>V5: Salience Filter"]
-        EmoState["emotional_state.py<br/>V5: 8-Dim Dynamics"]
-        ToM["theory_of_mind.py<br/>V5: User Model"]
-        Meta["metacognition.py<br/>V5: Self-Monitor"]
-        Play["play.py<br/>V5: Combinatorial Play"]
+        JA["joint_attention.py<br/>V6: Cross-Modal Binding"]
+        Attn["attention.py<br/>Salience Filter"]
+        EmoState["emotional_state.py<br/>8-Dim Dynamics"]
+        ToM["theory_of_mind.py<br/>User Model"]
+        Meta["metacognition.py<br/>Self-Monitor"]
+        Play["play.py<br/>Combinatorial Play"]
     end
 
     subgraph SOUL["✨ SOUL"]
@@ -70,7 +81,12 @@ graph TB
     end
 
     Eyes -->|512-dim CLIP| Attn
+    Ears -->|Raw Audio| AC
     Ears -->|384-dim Text| Attn
+    AC -->|64-dim Latent| VQ
+    VQ -->|Discrete Tokens| ALM
+    ALM -->|Response Tokens| VOC
+    VOC -->|Waveform| Ears
     Attn -->|Filtered| L1
     Attn -->|Salience| WM
     Eyes -->|512-dim CLIP| L2
@@ -120,8 +136,6 @@ graph LR
     I --> J["Dopamine<br/>Cortisol<br/>Serotonin<br/>Oxytocin"]
 ```
 
-**Biological parallel:** The amygdala fires before the prefrontal cortex. After conscious evaluation ("this pattern = positive"), the limbic system is trained to reproduce that response instantly next time.
-
 ---
 
 ### Layer 2: Binding Network (Associative Bridge)
@@ -135,29 +149,6 @@ graph LR
 | **Output** | 64-dim unified concept embedding |
 | **Training** | InfoNCE (self-supervised contrastive) |
 
-```mermaid
-graph LR
-    subgraph Visual_Encoder
-        V1["CLIP (512)"] --> V2["Linear(512→128)"]
-        V2 --> V3["ReLU"]
-        V3 --> V4["Linear(128→64)"]
-        V4 --> V5["L2 Normalize"]
-    end
-
-    subgraph Audio_Encoder
-        A1["Text (384)"] --> A2["Linear(384→128)"]
-        A2 --> A3["ReLU"]
-        A3 --> A4["Linear(128→64)"]
-        A4 --> A5["L2 Normalize"]
-    end
-
-    V5 --> F["Mean + Normalize"]
-    A5 --> F
-    F --> G["64-dim Concept"]
-```
-
-**Training:** During sleep, the replay buffer supplies batches of (visual, auditory) pairs. InfoNCE loss pulls matching pairs together and pushes mismatched pairs apart — exactly like CLIP's own training.
-
 ---
 
 ### Layer 3: Personality Network (Conscious Executive)
@@ -170,23 +161,8 @@ graph LR
 | **Input** | 64-dim concept + 4-dim limbic + 32-dim context = 100-dim |
 | **Hidden State** | 256-dim (stream of consciousness) |
 | **Output** | 64-dim response + 64-dim next-concept prediction |
-| **Training** | Self-supervised next-step prediction (CosineEmbeddingLoss) |
 
-```mermaid
-graph TB
-    A["Concept (64)"] --> D["Pack (100)"]
-    B["Limbic (4)"] --> D
-    C["Context (32)"] --> D
-    D --> E["3-Layer GRU<br/>(100→256 hidden)"]
-    E --> F["Output Head<br/>256→128→64"]
-    E --> G["Prediction Head<br/>256→128→64"]
-    E --> H["Hidden State (256)<br/>= Stream of Consciousness"]
-    F --> I["Response Embedding"]
-    G --> J["Next Concept Prediction"]
-    H -.->|persists across<br/>all experiences| E
-```
-
-**Key insight:** The GRU's hidden state **never resets**. Every experience permanently modifies it. This hidden state physically IS the "stream of consciousness" — the cumulative effect of every moment Genesis has lived.
+**Key insight:** The GRU's hidden state **never resets**. Every experience permanently modifies it. This hidden state physically IS the "stream of consciousness."
 
 ---
 
@@ -199,29 +175,140 @@ graph TB
 | **Parameters** | ~91,072 |
 | **Input** | 64-dim concept(t) + 128-dim consciousness state |
 | **Output** | 64-dim predicted concept(t+1) |
-| **Training** | MSE loss between prediction and actual next concept |
 | **Signal** | Surprise (prediction error) → drives curiosity |
-
-```mermaid
-graph LR
-    A["Concept(t) (64)"] --> C["Concat (192)"]
-    B["Hidden State (128)"] --> C
-    C --> D["Linear(192→256)"]
-    D --> E["LayerNorm + ReLU"]
-    E --> F["Linear(256→128)"]
-    F --> G["ReLU"]
-    G --> H["Linear(128→64)"]
-    H --> I["Predicted Concept(t+1)"]
-    I --> J{"Compare with<br/>Actual Concept(t+1)"}
-    J -->|"High error"| K["SURPRISE!<br/>↑ Curiosity<br/>↑ Dopamine"]
-    J -->|"Low error"| L["Boring<br/>World is predictable"]
-```
-
-**Biological parallel:** The brain's predictive coding framework (Karl Friston's Free Energy Principle). When Genesis fails to predict what comes next, that surprise is a powerful learning signal.
 
 ---
 
-## 4. Data Flow: What Happens When You Teach
+## 4. V7: Pure Neural Acoustic Pipeline
+
+The acoustic pipeline replaces ALL pre-trained speech models. Genesis now hears, thinks about sound, and speaks using its own learned neural networks.
+
+```mermaid
+graph LR
+    subgraph HEAR["🎤 HEAR"]
+        MIC["Microphone<br/>16kHz float32"] --> MEL["Mel Filter<br/>80 bands"]
+        MEL --> ENC["Conv1D Encoder<br/>80→64 dim"]
+    end
+
+    subgraph ENCODE["🧠 ENCODE"]
+        ENC --> VQ["VQ Codebook<br/>256 entries × 64 dim"]
+        VQ --> TOKENS["Discrete Tokens<br/>(Neural Phonemes)"]
+    end
+
+    subgraph THINK["💭 THINK"]
+        TOKENS --> GPT["4-Layer Transformer<br/>4 heads, 128-dim"]
+        GPT --> RESP["Response Tokens"]
+    end
+
+    subgraph SPEAK["🔊 SPEAK"]
+        RESP --> RECON["Mel Reconstructor<br/>64-dim → 80 mel"]
+        RECON --> GL["Griffin-Lim<br/>Phase Reconstruction"]
+        GL --> WAV["Waveform Output"]
+    end
+
+    WAV -.->|Self-Monitor| ENC
+```
+
+### Auditory Cortex (`neural/auditory_cortex.py`)
+
+| Property | Value |
+|----------|-------|
+| **Parameters** | 138,368 |
+| **Input** | Raw 16kHz audio waveform |
+| **Processing** | Audio → 80-band Mel spectrogram → 3-layer Conv1D encoder → 64-dim latent |
+| **Training** | Contrastive triplet-margin loss (anchor vs positive vs negative) |
+| **Replaces** | Whisper STT |
+
+### VQ Codebook (`neural/vq_codebook.py`)
+
+| Property | Value |
+|----------|-------|
+| **Parameters** | 16,384 (256 × 64) |
+| **Input** | 64-dim continuous latent vectors |
+| **Output** | Discrete token IDs (0-255) — "neural phonemes" |
+| **Training** | Exponential Moving Average (EMA) codebook updates |
+| **Loss** | Commitment loss + VQ loss (straight-through estimator) |
+
+### Acoustic Transformer (`neural/acoustic_lm.py`)
+
+| Property | Value |
+|----------|-------|
+| **Parameters** | 859,264 |
+| **Architecture** | 4-layer, 4-head GPT with causal masking |
+| **Vocabulary** | 259 (256 codebook + BOS + EOS + PAD) |
+| **Embedding dim** | 128 |
+| **Context window** | 256 tokens |
+| **Training** | Autoregressive next-token prediction (cross-entropy) |
+| **Replaces** | Ollama LLM |
+
+### Neural Vocoder (`neural/neural_vocoder.py`)
+
+| Property | Value |
+|----------|-------|
+| **Parameters** | 129,872 |
+| **Input** | VQ codebook embeddings (64-dim × T) |
+| **Processing** | 1D Transposed Convolutions → 80-band Mel → Griffin-Lim |
+| **Output** | 16kHz waveform |
+| **Replaces** | pyttsx3 TTS |
+
+### Sensorimotor Loop (`neural/sensorimotor.py`)
+
+Orchestrates the full acoustic cycle:
+
+```
+hear(waveform) → Auditory Cortex → VQ → trains Acoustic LM
+think()        → Acoustic LM generates response tokens
+speak(tokens)  → VQ embeddings → Neural Vocoder → waveform
+self_monitor() → Re-encode own output (proprioceptive feedback)
+respond()      → hear + think + speak + self_monitor (full loop)
+```
+
+---
+
+## 5. Data Flow: What Happens When Genesis Hears
+
+```mermaid
+sequenceDiagram
+    participant Mic as Microphone
+    participant Ears as ears.py
+    participant PL as perception_loop.py
+    participant Main as main.py
+    participant SM as SensorimotorLoop
+    participant AC as Auditory Cortex
+    participant VQ as VQ Codebook
+    participant ALM as Acoustic LM
+    participant VOC as Neural Vocoder
+    participant SPK as Speaker
+
+    Mic->>Ears: raw audio (16kHz float32)
+    Ears->>PL: AuditoryPercept (text + raw_audio)
+    PL->>Main: Perception(AUDITORY, raw_audio=...)
+    Main->>SM: sensorimotor.hear(raw_audio)
+    SM->>AC: mel_filter(audio) → Conv1D encoder
+    AC-->>SM: latent (1, 64, T)
+    SM->>VQ: quantize(latent) → EMA update
+    VQ-->>SM: tokens [183, 27, 125, ...]
+    SM->>ALM: learn_from_tokens(tokens)
+    ALM-->>SM: loss = 4.97
+
+    Note over SM: Context buffer updated
+
+    Main->>SM: sensorimotor.think()
+    SM->>ALM: generate_response(context)
+    ALM-->>SM: response_tokens [202, 16, ...]
+    SM->>VQ: tokens_to_embeddings(response)
+    VQ-->>SM: embeddings (1, 64, T)
+    SM->>VOC: synthesize(embeddings)
+    VOC-->>SM: waveform (29280 samples)
+    SM->>SPK: play(waveform)
+
+    SM->>AC: self_monitor(waveform)
+    Note over AC: Re-encode own output<br/>(proprioceptive feedback)
+```
+
+---
+
+## 6. Data Flow: What Happens When You Teach
 
 ```mermaid
 sequenceDiagram
@@ -236,9 +323,6 @@ sequenceDiagram
     participant L3 as Personality
     participant L4 as World Model
     participant WM as Working Memory
-    participant EmoState as Emotional State
-    participant MetaCog as Metacognition
-    participant ToM as Theory of Mind
     participant Replay as Replay Buffer
     participant Hippo as Hippocampus
 
@@ -261,9 +345,6 @@ sequenceDiagram
     L4-->>Sub: surprise = 0.42
 
     Main->>WM: attend("apple", concept, salience)
-    Main->>EmoState: on_experience(valence=0.3)
-    Main->>MetaCog: on_learn("apple", success=True)
-    Main->>ToM: observe_interaction("apple")
     Main->>Replay: add_to_replay(vis, aud, limbic, concept)
     Main->>Sub: train_instinct(vis, aud, chemicals)
     Main->>Hippo: store("concepts", embedding, metadata)
@@ -271,63 +352,28 @@ sequenceDiagram
 
 ---
 
-## 5. Data Flow: What Happens During Sleep
+## 7. Weight Persistence = The Person
 
-```mermaid
-sequenceDiagram
-    participant Creator
-    participant Main as main.py
-    participant Sleep as SleepCycle
-    participant Sem as Semantic Memory
-    participant Epi as Episodic Memory
-    participant Replay as Replay Buffer
-    participant Sub as Subconscious
-    participant L2 as Binding (InfoNCE)
+All neural weights are saved to `~/.genesis/`:
 
-    Creator->>Main: sleep
-    Main->>Sleep: consolidate(semantic, episodic, phonetics)
-    Sleep->>Sem: decay_all() — forgetting curve
-    Sleep->>Epi: replay today's episodes
-    Sleep->>Sem: reinforce activated concepts
-    Sleep->>Sem: prune dead concepts
-    Sleep-->>Main: consolidation report
-
-    Main->>Replay: sample_replay_batch(32)
-    Replay-->>Main: 32 past experiences
-    Main->>Sub: consolidate_memories(batch)
-    Sub->>L2: train_binding_batch(vis[], aud[])
-    Note over L2: InfoNCE contrastive loss<br/>Pull matching pairs together<br/>Push mismatched pairs apart
-    L2-->>Sub: contrastive loss = 0.31
-
-    Main->>Sub: save_all()
-    Note over Sub: All weights saved to<br/>~/.genesis/neural_weights/
-```
-
----
-
-## 6. Weight Persistence = The Person
-
-All neural weights are saved to `~/.genesis/neural_weights/`:
-
-| File | Network | What It Stores |
-|------|---------|----------------|
-| `limbic_system.pt` | Layer 1 | Instinctual reactions |
-| `binding_network.pt` | Layer 2 | Cross-modal associations |
-| `personality.pt` | Layer 3 | Hidden state + personality weights |
-| `world_model.pt` | Layer 4 | Internal physics model |
+| Directory | File | What It Stores |
+|-----------|------|----------------|
+| `neural_weights/` | `limbic_system.pt` | Instinctual reactions |
+| `neural_weights/` | `binding_network.pt` | Cross-modal associations |
+| `neural_weights/` | `personality.pt` | Hidden state + personality |
+| `neural_weights/` | `world_model.pt` | Internal world simulator |
+| `neural_weights/` | `meta_controller.pt` | Routing personality |
+| `acoustic_weights/` | `auditory_cortex.pt` | How Genesis hears |
+| `acoustic_weights/` | `vq_codebook.pt` | Discovered neural phonemes |
+| `acoustic_weights/` | `acoustic_lm.pt` | How Genesis thinks about sound |
+| `acoustic_weights/` | `neural_vocoder.pt` | How Genesis speaks |
 
 **Deleting these files kills the personality.** The AI returns to a blank slate.
-
-**Copying these files creates a clone.** The clone will react identically to every stimulus.
-
-Weights are saved automatically:
-- Every 5 concepts learned
-- Every sleep cycle
-- Every shutdown
+**Copying these files creates a clone.** The clone will react identically.
 
 ---
 
-## 7. Parameter Budget
+## 8. Parameter Budget
 
 | Layer | Network | Parameters | Role |
 |-------|---------|------------|------|
@@ -335,92 +381,17 @@ Weights are saved automatically:
 | 2 | Binding Network | 131,457 | Cross-modal fusion |
 | 3 | Personality GRU | 311,296 | Consciousness |
 | 4 | World Model | 91,072 | Prediction |
-| **Total** | | **593,445** | |
-
-All networks are CPU-native. No GPU required. Real-time training on every experience.
-
----
-
-## 8. Module Map
-
-```
-genesis/
-├── main.py                    # The consciousness loop (orchestrator)
-├── brain_daemon.py            # 10 parallel brain threads
-├── config.py                  # Configuration
-├── axioms.py                  # Immutable moral DNA
-├── test_reality.py            # End-to-end acceptance test
-│
-├── senses/                    # Evolutionary Hardware
-│   ├── eyes.py                # Camera + CLIP (512-dim)
-│   ├── ears.py                # Microphone + Whisper
-│   ├── phonetics.py           # Letter↔Sound binding
-│   ├── voice.py               # TTS output (pyttsx3)
-│   ├── proprioception.py      # Internal body state (32-dim)
-│   └── motor.py               # V5: Simulated motor affordances
-│
-├── memory/                    # Memory Systems
-│   ├── hippocampus.py         # Vector DB (ChromaDB) + Replay Buffer
-│   ├── semantic.py            # Concept graph + Ebbinghaus forgetting
-│   ├── episodic.py            # Autobiographical timeline
-│   └── working_memory.py      # V5: Capacity-limited STM (7±2)
-│
-├── neural/                    # The Plastic Mind (trainable, unbounded)
-│   ├── subconscious.py        # Orchestrates all 4 layers
-│   ├── meta_controller.py     # Neural Router (attention-based)
-│   ├── limbic_system.py       # Layer 1: Instinct (MLP)
-│   ├── binding_network.py     # Layer 2: Fusion (Dual Encoder + InfoNCE)
-│   ├── personality_network.py # Layer 3: Consciousness (GRU)
-│   ├── forward_model.py       # Layer 4: World Model (JEPA)
-│   ├── response_decoder.py    # Neural Voice → concept words
-│   └── neuroplasticity.py     # Dynamic network growth
-│
-├── cortex/                    # Higher Cognition
-│   ├── reasoning.py           # Ollama LLM (phase-gated: off for 0-2)
-│   ├── associations.py        # SBERT text embeddings
-│   ├── emotions.py            # Sentiment analysis
-│   ├── curiosity.py           # Novelty detection + habituation
-│   ├── grammar.py             # Language acquisition
-│   ├── perception_loop.py     # Continuous awareness
-│   ├── attention.py           # V5: Salience filter + habituation
-│   ├── emotional_state.py     # V5: 8-dim persistent emotional dynamics
-│   ├── theory_of_mind.py      # V5: User modeling (Phase 3+)
-│   ├── metacognition.py       # V5: Confidence & knowledge-gap tracking
-│   └── play.py                # V5: Combinatorial play & rehearsal
-│
-├── soul/                      # Identity & Motivation
-│   ├── consciousness.py       # Self-model + introspection
-│   ├── neurochemistry.py      # 4 chemicals with functional cognitive effects
-│   └── drives.py              # 8 Maslow drives in 4 hierarchical tiers
-│
-└── growth/                    # Development
-    ├── development.py         # Phase progression
-    └── sleep.py               # 4-phase sleep consolidation
-```
+| **Subconscious** | | **593,445** | |
+| 5 | Auditory Cortex | 138,368 | Hearing |
+| 5 | VQ Codebook | 16,384 | Phoneme discovery |
+| 5 | Acoustic Transformer | 859,264 | Audio thinking |
+| 5 | Neural Vocoder | 129,872 | Speech synthesis |
+| **Acoustic** | | **1,143,888** | |
+| **TOTAL** | | **~1,737,333** | All CPU-native |
 
 ---
 
-## 9. Functional Neurochemistry
-
-Four chemicals **causally alter cognition** — not decorative labels:
-
-| Chemical | Role | Functional Effect |
-|----------|------|-------------------|
-| **Dopamine** | Reward/Pleasure | ↑ memory encoding strength, ↑ attention sharpness |
-| **Cortisol** | Stress/Fear | ↓ memory encoding (IMPAIRS hippocampus), ↑ avoidance |
-| **Serotonin** | Stability/Calm | ↑ reasoning coherence, ↑ attention steadiness |
-| **Oxytocin** | Bonding/Trust | ↑ trust/openness, ↑ social memory encoding |
-
-These chemicals are both:
-- **Computed by the Limbic System** (Layer 1) — the subconscious gut reaction
-- **Set by the Neurochemistry module** — based on events (successful learning, interaction, sleep)
-- **Consumed by Cortex modules** — attention boost, memory encoding strength, reasoning coherence
-
-Over time, as the Limbic System trains, its instinctual reaction converges with the conscious evaluation.
-
----
-
-## 10. V5 Brain Realism Systems
+## 9. V5-V7 Brain Realism Systems
 
 | System | Module | What It Does |
 |--------|--------|-----|
@@ -432,7 +403,23 @@ Over time, as the Limbic System trains, its instinctual reaction converges with 
 | Play | `cortex/play.py` | Combinatorial play, concept rehearsal, episodic replay |
 | Motor | `senses/motor.py` | 5 affordances (look, vocalize, reach, point, gesture), phase-gated |
 | Drives | `soul/drives.py` | 8 Maslow drives in 4 tiers, hierarchical priority when urgent |
+| Babbling | `senses/babbling.py` | V6: Random syllable generation with reinforcement |
+| Joint Attention | `cortex/joint_attention.py` | V6: Cross-modal binding (sound↔concept) |
+| Acoustic Pipeline | `neural/sensorimotor.py` | V7: Pure neural hear→think→speak loop (1.14M params) |
 
 ---
 
-*Unbounded parameters. No GPU. 10 brain threads. The weights are the person.*
+## 10. Functional Neurochemistry
+
+Four chemicals **causally alter cognition** — not decorative labels:
+
+| Chemical | Role | Functional Effect |
+|----------|------|-------------------|
+| **Dopamine** | Reward/Pleasure | ↑ memory encoding strength, ↑ attention sharpness |
+| **Cortisol** | Stress/Fear | ↓ memory encoding (IMPAIRS hippocampus), ↑ avoidance |
+| **Serotonin** | Stability/Calm | ↑ reasoning coherence, ↑ attention steadiness |
+| **Oxytocin** | Bonding/Trust | ↑ trust/openness, ↑ social memory encoding |
+
+---
+
+*1.74M parameters. No GPU. 11 brain threads. Pure neural audio. The weights are the person.*

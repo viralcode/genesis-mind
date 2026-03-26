@@ -507,6 +507,19 @@ class GenesisMind:
             joint_attention=self.joint_attention,
         )
 
+        # V7: Generate neural audio response through acoustic pipeline
+        if self.config.cortex.grammar_mode == "tabula_rasa":
+            try:
+                waveform, neural_tokens = self.sensorimotor.generate_spontaneous(
+                    max_tokens=40, temperature=0.85,
+                )
+                if len(waveform) > 1600:  # At least 0.1s of audio
+                    self.sensorimotor.vocoder.play(waveform)
+                    logger.debug("Neural vocalization: %d tokens → %d samples",
+                                 len(neural_tokens), len(waveform))
+            except Exception as e:
+                logger.error("Neural audio generation failed: %s", e)
+
         # Evaluate emotional content
         evaluation = self.emotions.evaluate(question)
 
@@ -1217,6 +1230,18 @@ class GenesisMind:
 
         elif perception.type == PerceptionType.AUDITORY:
             text = perception.content
+
+            # V7: Feed raw audio to acoustic neural pipeline (trains from every sound)
+            if perception.raw_audio is not None:
+                try:
+                    acoustic_tokens = self.sensorimotor.hear(perception.raw_audio)
+                    logger.debug("Acoustic pipeline processed %d tokens from audio", len(acoustic_tokens))
+                except Exception as e:
+                    logger.error("Sensorimotor hear failed: %s", e)
+
+            if not text:
+                return  # Pure audio event, no text content to process
+
             print(f"\n  Genesis: 👂 I heard: '{text}'")
 
             # Learn grammar from what was heard

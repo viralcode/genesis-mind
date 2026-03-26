@@ -45,6 +45,7 @@ class Perception:
     type: PerceptionType
     content: Any               # Raw content (frame, text, thought)
     embedding: Optional[Any] = None  # Vector embedding if available
+    raw_audio: Optional[Any] = None  # V7: Raw audio waveform for acoustic pipeline
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     motion_score: float = 0.0  # For visual perceptions
     is_speech: bool = False    # For auditory perceptions
@@ -214,15 +215,30 @@ class PerceptionLoop:
             try:
                 # Listen for a chunk of audio
                 result = ears.listen_once()
-                if result and result.get("text") and result["text"].strip():
-                    text = result["text"].strip()
-                    if len(text) > 2:  # Filter out noise artifacts
-                        self._enqueue(Perception(
-                            type=PerceptionType.AUDITORY,
-                            content=text,
-                            is_speech=True,
-                        ))
-                        logger.info("👂 Heard: '%s'", text[:80])
+                if result is None:
+                    continue
+
+                # V7: Always pass raw audio for acoustic neural training
+                raw_audio = getattr(result, 'raw_audio', None)
+                text = getattr(result, 'text', '') or ''
+                is_speech = getattr(result, 'is_speech', False)
+
+                if is_speech and text.strip() and len(text.strip()) > 2:
+                    self._enqueue(Perception(
+                        type=PerceptionType.AUDITORY,
+                        content=text.strip(),
+                        raw_audio=raw_audio,
+                        is_speech=True,
+                    ))
+                    logger.info("👂 Heard: '%s'", text[:80])
+                elif raw_audio is not None and is_speech:
+                    # Even without text, pass raw audio for neural training
+                    self._enqueue(Perception(
+                        type=PerceptionType.AUDITORY,
+                        content='',
+                        raw_audio=raw_audio,
+                        is_speech=True,
+                    ))
 
             except Exception as e:
                 logger.error("Auditory loop error: %s", e)

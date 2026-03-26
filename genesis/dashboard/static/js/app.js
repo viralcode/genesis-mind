@@ -552,27 +552,93 @@ function updateUI(state) {
         }
     }
 
-    // Acoustic Neural Pipeline (V7)
+    // Acoustic Neural Pipeline (V7) — Enhanced
     if (state.acoustic_pipeline) {
         const ap = state.acoustic_pipeline;
+
+        // Overview stats
         const paramsTag = document.getElementById('acoustic-params');
         if (paramsTag) paramsTag.textContent = (ap.total_params || 0).toLocaleString() + ' Params';
-        const acParams = document.getElementById('ac-params');
-        const acFrames = document.getElementById('ac-frames');
-        if (acParams && ap.auditory_cortex) acParams.textContent = (ap.auditory_cortex.params || 0).toLocaleString();
-        if (acFrames && ap.auditory_cortex) acFrames.textContent = (ap.auditory_cortex.frames_processed || 0).toLocaleString();
-        const vqActive = document.getElementById('vq-active');
-        const vqUtil = document.getElementById('vq-util');
-        if (vqActive && ap.vq_codebook) vqActive.textContent = ap.vq_codebook.active_codes || 0;
-        if (vqUtil && ap.vq_codebook) vqUtil.textContent = ((ap.vq_codebook.codebook_utilization || 0) * 100).toFixed(1) + '%';
-        const almParams = document.getElementById('alm-params');
-        const almSeqs = document.getElementById('alm-seqs');
-        const almLoss = document.getElementById('alm-loss');
-        if (almParams && ap.acoustic_brain) almParams.textContent = (ap.acoustic_brain.params || 0).toLocaleString();
-        if (almSeqs && ap.acoustic_brain) almSeqs.textContent = ap.acoustic_brain.total_sequences_heard || 0;
-        if (almLoss && ap.acoustic_brain) almLoss.textContent = (ap.acoustic_brain.avg_loss || 0).toFixed(4);
-        const nvSynths = document.getElementById('nv-synths');
-        if (nvSynths && ap.vocoder) nvSynths.textContent = ap.vocoder.total_syntheses || 0;
+        const apTotal = document.getElementById('ap-total-params');
+        if (apTotal) apTotal.textContent = (ap.total_params || 0).toLocaleString();
+        const apInter = document.getElementById('ap-interactions');
+        if (apInter) apInter.textContent = ap.total_interactions || 0;
+        const apCtx = document.getElementById('ap-context');
+        if (apCtx) apCtx.textContent = ap.context_buffer_size || 0;
+
+        // Auditory Cortex
+        if (ap.auditory_cortex) {
+            const ac = ap.auditory_cortex;
+            const acTag = document.getElementById('ac-params-tag');
+            if (acTag) acTag.textContent = (ac.params || 0).toLocaleString() + ' params';
+            const acFrames = document.getElementById('ac-frames');
+            if (acFrames) acFrames.textContent = (ac.frames_processed || 0).toLocaleString();
+            const acLoss = document.getElementById('ac-loss');
+            if (acLoss) acLoss.textContent = (ac.avg_loss || 0).toFixed(4);
+        }
+
+        // VQ Codebook
+        if (ap.vq_codebook) {
+            const vq = ap.vq_codebook;
+            const vqTag = document.getElementById('vq-tag');
+            if (vqTag) vqTag.textContent = (vq.active_codes || 0) + ' / 256 active';
+            const vqActive = document.getElementById('vq-active');
+            if (vqActive) vqActive.textContent = vq.active_codes || 0;
+            const vqUtil = document.getElementById('vq-util');
+            if (vqUtil) vqUtil.textContent = ((vq.codebook_utilization || 0) * 100).toFixed(1) + '%';
+            const vqQuant = document.getElementById('vq-quant');
+            if (vqQuant) vqQuant.textContent = (vq.total_quantizations || 0).toLocaleString();
+
+            // Codebook grid visualization
+            const grid = document.getElementById('codebook-viz');
+            if (grid && grid.children.length === 0) {
+                for (let i = 0; i < 256; i++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'codebook-cell';
+                    cell.id = 'cb-' + i;
+                    cell.title = 'Token ' + i;
+                    grid.appendChild(cell);
+                }
+            }
+            // Mark active codes
+            if (grid && vq.active_codes > 0) {
+                const activeCount = vq.active_codes;
+                for (let i = 0; i < 256; i++) {
+                    const cell = document.getElementById('cb-' + i);
+                    if (cell) cell.className = i < activeCount ? 'codebook-cell active' : 'codebook-cell';
+                }
+            }
+        }
+
+        // Acoustic Language Model
+        if (ap.acoustic_brain) {
+            const ab = ap.acoustic_brain;
+            const almTag = document.getElementById('alm-params-tag');
+            if (almTag) almTag.textContent = (ab.params || 0).toLocaleString() + ' params';
+            const almSeqs = document.getElementById('alm-seqs');
+            if (almSeqs) almSeqs.textContent = ab.total_sequences_heard || 0;
+            const almTokens = document.getElementById('alm-tokens');
+            if (almTokens) almTokens.textContent = (ab.total_tokens_seen || 0).toLocaleString();
+            const almLoss = document.getElementById('alm-loss');
+            if (almLoss) almLoss.textContent = (ab.avg_loss || 0).toFixed(4);
+            // Loss bar (scale: 0-6 = full, closer to 0 = better)
+            const lossBar = document.getElementById('alm-loss-bar');
+            if (lossBar) {
+                const pct = Math.min(100, ((ab.avg_loss || 6) / 6) * 100);
+                lossBar.style.width = pct + '%';
+            }
+        }
+
+        // Neural Vocoder
+        if (ap.vocoder) {
+            const vo = ap.vocoder;
+            const nvTag = document.getElementById('nv-params-tag');
+            if (nvTag) nvTag.textContent = (vo.params || 0).toLocaleString() + ' params';
+            const nvSynths = document.getElementById('nv-synths');
+            if (nvSynths) nvSynths.textContent = vo.total_syntheses || 0;
+            const nvSr = document.getElementById('nv-sr');
+            if (nvSr) nvSr.textContent = (vo.sample_rate || 16000) / 1000 + 'kHz';
+        }
     }
 }
 // Fetch loop

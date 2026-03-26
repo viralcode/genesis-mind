@@ -3,14 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Genesis Mind V5 — Neural Dashboard</title>
-    <!-- Fonts -->
+    <title>Genesis Mind V7 — Neural Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <!-- Chart.js and Vis.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-    <!-- Custom Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* V7 Premium Dashboard Overrides */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.4fr 1fr 1fr;
+            gap: 1rem;
+            padding: 1rem;
+            max-width: 1920px;
+            margin: 0 auto;
+        }
+        @media (max-width: 1400px) {
+            .dashboard-grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        .mini-stat { display: flex; flex-direction: column; align-items: center; padding: 0.6rem; background: rgba(255,255,255,0.03); border-radius: 8px; min-width: 70px; }
+        .mini-stat .label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.25rem; }
+        .mini-stat .value { font-size: 1.1rem; font-weight: 600; font-family: 'JetBrains Mono', monospace; color: var(--text-primary); }
+        .mini-stat.accent .value { color: var(--accent-primary); }
+        .mini-stat.warn .value { color: #ffd54f; }
+        .mini-stat.good .value { color: #66bb6a; }
+
+        .stat-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+
+        .pipeline-flow { display: flex; align-items: center; gap: 0.3rem; margin: 0.8rem 0; font-size: 0.7rem; flex-wrap: wrap; }
+        .pipeline-node { padding: 0.3rem 0.6rem; border-radius: 6px; background: rgba(124,77,255,0.15); border: 1px solid rgba(124,77,255,0.3); color: var(--accent-primary); font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; }
+        .pipeline-arrow { color: var(--text-muted); font-size: 0.8rem; }
+        .pipeline-node.active { background: rgba(0,230,118,0.15); border-color: rgba(0,230,118,0.4); color: var(--accent-secondary); animation: pulse-glow 2s ease-in-out infinite; }
+        @keyframes pulse-glow { 0%,100% { box-shadow: 0 0 4px rgba(0,230,118,0.2); } 50% { box-shadow: 0 0 12px rgba(0,230,118,0.4); } }
+
+        .codebook-grid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 1px; margin-top: 0.5rem; }
+        .codebook-cell { width: 100%; aspect-ratio: 1; border-radius: 2px; background: rgba(255,255,255,0.03); transition: background 0.3s; }
+        .codebook-cell.active { background: var(--accent-primary); }
+
+        .loss-indicator { display: flex; align-items: center; gap: 0.5rem; }
+        .loss-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; position: relative; }
+        .loss-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; background: linear-gradient(90deg, #66bb6a, #ffd54f, #ef5350); }
+
+        .token-stream { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-muted); background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 6px; max-height: 60px; overflow: hidden; word-break: break-all; margin-top: 0.5rem; }
+
+        .col { display: flex; flex-direction: column; gap: 1rem; }
+
+        /* Header tweaks */
+        .app-header h1 span { color: var(--accent-secondary); }
+    </style>
 </head>
 <body>
     <div class="background-anim"></div>
@@ -18,8 +59,8 @@
     <header class="app-header">
         <div class="logo">
             <div class="pulse-ring"></div>
-            <h1>Genesis Mind <span>V5</span></h1>
-            <span class="badge" id="phase-badge">Phase 1 (Infant)</span>
+            <h1>Genesis Mind <span>V7</span></h1>
+            <span class="badge" id="phase-badge">Phase 0 (Newborn)</span>
         </div>
         <nav class="top-nav">
             <a href="/" class="nav-link active">Dashboard</a>
@@ -33,31 +74,19 @@
 
     <main class="dashboard-grid">
         
-        <!-- Left Column: Core Systems -->
-        <div class="col left-col">
+        <!-- Column 1: System & Working Memory -->
+        <div class="col">
             
             <!-- Brain Daemon Threads -->
             <section class="glass-panel">
                 <h2>SYSTEM DAEMONS</h2>
-                <div class="threads-grid" id="threads-container">
-                    <!-- Javascript populates this -->
-                </div>
+                <div class="threads-grid" id="threads-container"></div>
             </section>
             
             <!-- Sensory Streams -->
             <section class="glass-panel">
                 <h2>SENSORY STREAMS</h2>
-                <div class="threads-grid" id="senses-container">
-                    <!-- Javascript populates this -->
-                </div>
-            </section>
-            
-            <!-- Activity Stream -->
-            <section class="glass-panel">
-                <h2>ACTIVITY STREAM</h2>
-                <div class="stream-container" id="activity-stream">
-                    <!-- Javascript populates this -->
-                </div>
+                <div class="threads-grid" id="senses-container"></div>
             </section>
             
             <!-- Working Memory -->
@@ -66,17 +95,21 @@
                     <h2>WORKING MEMORY</h2>
                     <span class="capacity-tag"><span id="wm-usage">0</span> / <span id="wm-capacity">7</span> Slots</span>
                 </div>
-                <div class="wm-slots" id="wm-container">
-                    <!-- Javascript populates this -->
-                </div>
+                <div class="wm-slots" id="wm-container"></div>
+            </section>
+
+            <!-- Activity Stream -->
+            <section class="glass-panel">
+                <h2>ACTIVITY STREAM</h2>
+                <div class="stream-container" id="activity-stream"></div>
             </section>
             
         </div>
         
-        <!-- Middle Column: Dynamic Cognitive State -->
-        <div class="col middle-col">
+        <!-- Column 2: Emotional & Drive Charts -->
+        <div class="col">
             
-            <!-- 8D Emotional State -->
+            <!-- 8D Emotional Radar -->
             <section class="glass-panel large-chart">
                 <h2>EMOTIONAL DYNAMICS</h2>
                 <div class="chart-container">
@@ -84,7 +117,7 @@
                 </div>
             </section>
 
-            <!-- 8 Maslow Drives -->
+            <!-- Maslow Drives Bar Chart -->
             <section class="glass-panel large-chart">
                 <h2>MASLOW DRIVE SYSTEM</h2>
                 <div class="chart-container drives-container">
@@ -94,8 +127,8 @@
 
         </div>
         
-        <!-- Right Column: Neural Architecture -->
-        <div class="col right-col">
+        <!-- Column 3: Neural Architecture -->
+        <div class="col">
             
             <!-- Neurochemistry -->
             <section class="glass-panel neuro-panel">
@@ -124,7 +157,7 @@
                 </div>
             </section>
             
-            <!-- Society of Mind (Neural Network) -->
+            <!-- Society of Mind (Neural Layers) -->
             <section class="glass-panel">
                 <div class="panel-header">
                     <h2>THE PLASTIC MIND</h2>
@@ -147,11 +180,8 @@
                     <div class="layer-stat">Parameters: <span class="mono">311,296</span></div>
                     <div class="layer-stat">Experiences: <span class="mono" id="exp-count">0</span></div>
                     
-                    <!-- Real-time hidden state visualization -->
                     <div class="activation-label">Hidden State Activation (128-dim)</div>
-                    <div class="hidden-state-viz" id="hidden-state-container">
-                        <!-- JS creates 128 micro-bars -->
-                    </div>
+                    <div class="hidden-state-viz" id="hidden-state-container"></div>
                 </div>
                 
                 <div class="neural-layer">
@@ -168,69 +198,133 @@
                     <h2>LANGUAGE ACQUISITION</h2>
                     <span class="capacity-tag" id="grammar-mode-tag">tabula_rasa</span>
                 </div>
-
                 <div class="neural-layer">
                     <div class="layer-title">Vocabulary</div>
-                    <div class="layer-stat">Learned Words: <span class="mono" id="la-vocab-size">0</span></div>
-                    <div class="layer-stat">Words Heard: <span class="mono" id="la-words-heard">0</span></div>
-                    <div class="layer-stat">Sentences Heard: <span class="mono" id="la-sentences-heard">0</span></div>
+                    <div class="stat-row">
+                        <div class="mini-stat accent"><div class="label">Learned</div><div class="value" id="la-vocab-size">0</div></div>
+                        <div class="mini-stat"><div class="label">Heard</div><div class="value" id="la-words-heard">0</div></div>
+                        <div class="mini-stat"><div class="label">Sentences</div><div class="value" id="la-sentences-heard">0</div></div>
+                    </div>
                 </div>
-
                 <div class="neural-layer">
                     <div class="layer-title">Acoustic Babbling</div>
-                    <div class="layer-stat">Repertoire: <span class="mono" id="la-repertoire">0</span> units</div>
-                    <div class="layer-stat">Total Babbles: <span class="mono" id="la-babbles">0</span></div>
-                    <div class="layer-stat">Reinforcements: <span class="mono" id="la-reinforcements">0</span></div>
+                    <div class="stat-row">
+                        <div class="mini-stat"><div class="label">Repertoire</div><div class="value" id="la-repertoire">0</div></div>
+                        <div class="mini-stat"><div class="label">Babbles</div><div class="value" id="la-babbles">0</div></div>
+                        <div class="mini-stat good"><div class="label">Reinforced</div><div class="value" id="la-reinforcements">0</div></div>
+                    </div>
                     <div class="layer-stat">Last Babble: <span class="mono" id="la-last-babble">---</span></div>
                 </div>
-
                 <div class="neural-layer">
                     <div class="layer-title">Cross-Modal Bindings</div>
-                    <div class="layer-stat">Total Bindings: <span class="mono" id="la-bindings">0</span></div>
-                    <div class="layer-stat">Learned: <span class="mono" id="la-learned">0</span></div>
-                    <div class="layer-stat">Permanent: <span class="mono" id="la-permanent">0</span></div>
+                    <div class="stat-row">
+                        <div class="mini-stat"><div class="label">Total</div><div class="value" id="la-bindings">0</div></div>
+                        <div class="mini-stat accent"><div class="label">Learned</div><div class="value" id="la-learned">0</div></div>
+                        <div class="mini-stat good"><div class="label">Permanent</div><div class="value" id="la-permanent">0</div></div>
+                    </div>
                 </div>
-
-                <div id="la-strongest-container" style="margin-top: 0.5rem;"></div>
+                <div id="la-strongest-container"></div>
             </section>
+        </div>
 
-            <!-- Acoustic Neural Pipeline (V7) -->
+        <!-- Column 4: Acoustic Neural Pipeline (V7) -->
+        <div class="col">
+
+            <!-- Pipeline Overview -->
             <section class="glass-panel">
                 <div class="panel-header">
                     <h2>ACOUSTIC NEURAL PIPELINE</h2>
                     <span class="capacity-tag" id="acoustic-params">0 Params</span>
                 </div>
 
-                <div class="neural-layer">
-                    <div class="layer-title">Auditory Cortex (Hearing)</div>
-                    <div class="layer-stat">Parameters: <span class="mono" id="ac-params">0</span></div>
-                    <div class="layer-stat">Frames Processed: <span class="mono" id="ac-frames">0</span></div>
+                <!-- Pipeline Flow Diagram -->
+                <div class="pipeline-flow">
+                    <div class="pipeline-node" id="pn-mic">🎤 Mic</div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-node" id="pn-mel">Mel</div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-node" id="pn-enc">Encoder</div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-node" id="pn-vq">VQ</div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-node active" id="pn-lm">Transformer</div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-node" id="pn-voc">Vocoder</div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-node" id="pn-spk">🔊 Speaker</div>
                 </div>
 
-                <div class="neural-layer">
-                    <div class="layer-title">VQ Codebook (Neural Phonemes)</div>
-                    <div class="layer-stat">Active Codes: <span class="mono" id="vq-active">0</span> / 256</div>
-                    <div class="layer-stat">Utilization: <span class="mono" id="vq-util">0%</span></div>
-                </div>
-
-                <div class="neural-layer active-layer">
-                    <div class="layer-title">Acoustic Language Model (Thinking)</div>
-                    <div class="layer-stat">Parameters: <span class="mono" id="alm-params">0</span></div>
-                    <div class="layer-stat">Sequences Heard: <span class="mono" id="alm-seqs">0</span></div>
-                    <div class="layer-stat">Avg Loss: <span class="mono" id="alm-loss">---</span></div>
-                </div>
-
-                <div class="neural-layer">
-                    <div class="layer-title">Neural Vocoder (Speaking)</div>
-                    <div class="layer-stat">Syntheses: <span class="mono" id="nv-synths">0</span></div>
+                <div class="stat-row">
+                    <div class="mini-stat accent"><div class="label">Total Params</div><div class="value" id="ap-total-params">0</div></div>
+                    <div class="mini-stat"><div class="label">Interactions</div><div class="value" id="ap-interactions">0</div></div>
+                    <div class="mini-stat"><div class="label">Context</div><div class="value" id="ap-context">0</div></div>
                 </div>
             </section>
-            
+
+            <!-- Auditory Cortex -->
+            <section class="glass-panel">
+                <div class="panel-header">
+                    <h2>AUDITORY CORTEX</h2>
+                    <span class="capacity-tag" id="ac-params-tag">0 params</span>
+                </div>
+                <div class="layer-stat">Function: Raw Audio → 80-band Mel → Conv1D → 64-dim Latent</div>
+                <div class="stat-row">
+                    <div class="mini-stat"><div class="label">Frames In</div><div class="value" id="ac-frames">0</div></div>
+                    <div class="mini-stat"><div class="label">Avg Loss</div><div class="value" id="ac-loss">0.00</div></div>
+                </div>
+            </section>
+
+            <!-- VQ Codebook -->
+            <section class="glass-panel">
+                <div class="panel-header">
+                    <h2>VQ CODEBOOK</h2>
+                    <span class="capacity-tag" id="vq-tag">0 / 256 active</span>
+                </div>
+                <div class="layer-stat">Neural Phoneme Discovery (256 discrete tokens)</div>
+                <div class="stat-row">
+                    <div class="mini-stat accent"><div class="label">Active</div><div class="value" id="vq-active">0</div></div>
+                    <div class="mini-stat"><div class="label">Utilization</div><div class="value" id="vq-util">0%</div></div>
+                    <div class="mini-stat"><div class="label">Quantized</div><div class="value" id="vq-quant">0</div></div>
+                </div>
+                <!-- Codebook utilization grid (16×16 = 256 entries) -->
+                <div class="codebook-grid" id="codebook-viz"></div>
+            </section>
+
+            <!-- Acoustic Language Model -->
+            <section class="glass-panel">
+                <div class="panel-header">
+                    <h2>ACOUSTIC TRANSFORMER</h2>
+                    <span class="capacity-tag" id="alm-params-tag">0 params</span>
+                </div>
+                <div class="layer-stat">4-Layer GPT on Audio Tokens (No Text)</div>
+                <div class="stat-row">
+                    <div class="mini-stat accent"><div class="label">Seqs Heard</div><div class="value" id="alm-seqs">0</div></div>
+                    <div class="mini-stat"><div class="label">Tokens Seen</div><div class="value" id="alm-tokens">0</div></div>
+                </div>
+                <div class="loss-indicator" style="margin-top:0.5rem;">
+                    <span style="font-size:0.7rem; color:var(--text-muted);">Loss:</span>
+                    <div class="loss-bar"><div class="loss-fill" id="alm-loss-bar" style="width:100%;"></div></div>
+                    <span class="mono" style="font-size:0.75rem;" id="alm-loss">---</span>
+                </div>
+                <div class="token-stream" id="last-tokens">No audio tokens yet...</div>
+            </section>
+
+            <!-- Neural Vocoder -->
+            <section class="glass-panel">
+                <div class="panel-header">
+                    <h2>NEURAL VOCODER</h2>
+                    <span class="capacity-tag" id="nv-params-tag">0 params</span>
+                </div>
+                <div class="layer-stat">Mel Reconstructor + Griffin-Lim → Waveform</div>
+                <div class="stat-row">
+                    <div class="mini-stat good"><div class="label">Syntheses</div><div class="value" id="nv-synths">0</div></div>
+                    <div class="mini-stat"><div class="label">Sample Rate</div><div class="value" id="nv-sr">16kHz</div></div>
+                </div>
+            </section>
         </div>
         
     </main>
 
-    <!-- App Logic -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
