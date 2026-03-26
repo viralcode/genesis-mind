@@ -39,6 +39,9 @@ from genesis.growth.sleep import SleepCycle
 from genesis.soul.consciousness import Consciousness
 from genesis.soul.neurochemistry import Neurochemistry
 from genesis.neural.subconscious import Subconscious
+from genesis.senses.voice import Voice
+from genesis.senses.proprioception import Proprioception
+from genesis.soul.drives import DriveSystem
 
 logger = logging.getLogger("genesis.main")
 
@@ -104,7 +107,28 @@ class GenesisMind:
 
         # --- Initialize Growth ---
         self.development = DevelopmentTracker(storage_path=GENESIS_HOME / "development_state.json")
-        self.sleep_cycle = SleepCycle()
+        self.sleep_cycle = SleepCycle(
+            auto_sleep_experiences=self.config.growth.auto_sleep_experiences,
+            auto_sleep_hours=self.config.growth.auto_sleep_hours,
+        )
+
+        # --- V4: Voice (TTS Output) ---
+        self.voice = Voice(
+            enabled=self.config.voice.enabled,
+            rate=self.config.voice.rate,
+            volume=self.config.voice.volume,
+        )
+
+        # --- V4: Proprioception (Internal Body Sense) ---
+        self.proprioception = Proprioception()
+        self.proprioception.increment_session()
+
+        # --- V4: Drive System (Intrinsic Motivation) ---
+        self.drives = DriveSystem(
+            curiosity_rise_rate=self.config.drives.curiosity_rise_rate,
+            social_rise_rate=self.config.drives.social_rise_rate,
+            novelty_rise_rate=self.config.drives.novelty_rise_rate,
+        )
 
         # --- Initialize Consciousness ---
         self.consciousness = Consciousness(
@@ -114,12 +138,14 @@ class GenesisMind:
             episodic_memory=self.episodic_memory,
             emotions_engine=self.emotions,
             phonetics_engine=self.phonetics,
+            proprioception=self.proprioception,
+            drives=self.drives,
         )
 
         # --- V2: Perception Loop (lazy init) ---
         self._perception_loop = None
 
-        logger.info("Genesis Mind V3 (Society of Mind) fully initialized")
+        logger.info("Genesis Mind V4 (Society of Mind + Body) fully initialized")
 
     def _get_eyes(self):
         if self._eyes is None:
@@ -219,10 +245,13 @@ class GenesisMind:
         visual_tensor = visual_embedding.astype(np.float32) if visual_embedding is not None else np.zeros(512, dtype=np.float32)
         audio_tensor = np.array(text_embedding, dtype=np.float32) if text_embedding else np.zeros(384, dtype=np.float32)
         
+        # V4: Pass proprioceptive context vector to the neural cascade
+        context_vec = self.proprioception.get_context_vector()
+        
         neural_result = self.subconscious.process_experience(
             clip_embedding=visual_tensor,
             text_embedding=audio_tensor,
-            context=None,
+            context=context_vec,
             train=True,
         )
 
@@ -250,18 +279,50 @@ class GenesisMind:
         if self.semantic_memory.count() % 5 == 0:
             self.subconscious.save_all()
 
+        # V4: Proprioception — record experience and fatigue
+        self.proprioception.record_experience()
+        self.proprioception.record_interaction()
+        self.sleep_cycle.record_experience()
+
+        # V4: Drives — learning satisfies curiosity and novelty
+        self.drives.on_learned_concept()
+        self.drives.on_creator_interaction()
+
+        # V4: Self-evaluation — Genesis evaluates its own learning quality
+        self.neurochemistry.on_self_evaluation(min(1.0, concept.strength + 0.3))
+
+        # V4: Fatigue affects neurochemistry
+        self.neurochemistry.on_fatigue(self.proprioception.fatigue)
+
+        # V4: Richer developmental progression with multi-signal gating
+        gram_stats = self.grammar.get_ngram_stats()
+        neural_stats = self.subconscious.get_stats()
+        curiosity_stats = self.curiosity.get_stats()
         milestone = self.consciousness.check_developmental_progress()
+
+        # V4: Decode the neural network's own voice
+        neural_voice = self.subconscious.decode_response(
+            neural_result['personality_response'], self.semantic_memory
+        )
 
         response = f"I have learned '{word}'"
         if visual_embedding is not None:
             response += " (with visual binding)"
         response += f". I now know {self.semantic_memory.count()} concepts."
+        if neural_voice and neural_voice not in ("(silence)", "(no words yet)"):
+            response += f" My neural echo: '{neural_voice}'."
         if lr_mod > 1.2:
             response += " I feel great joy learning this!"
         elif lr_mod < 0.7:
             response += " I feel uneasy, but I will remember."
         if milestone:
             response += f"\n\n🌟 {milestone}"
+
+        # V4: Check if auto-sleep should trigger
+        if self.sleep_cycle.should_sleep():
+            response += "\n\n😴 I feel so tired... I need to rest."
+            sleep_report = self.trigger_sleep()
+            response += f"\n{sleep_report}"
 
         return response
 
@@ -290,6 +351,10 @@ class GenesisMind:
         # Neurochemistry: Creator is interacting
         self.neurochemistry.on_creator_interaction()
 
+        # V4: Drives — Creator interaction satisfies social need
+        self.drives.on_creator_interaction()
+        self.proprioception.record_interaction()
+
         # Grammar: learn from what the Creator says
         self.grammar.learn_from_speech(question)
 
@@ -300,6 +365,15 @@ class GenesisMind:
         for mem in recalled:
             if mem["document"]:
                 memories.append(mem["document"])
+
+        # V4: Spreading activation — find associated concepts
+        words_in_question = question.lower().split()
+        for w in words_in_question:
+            activations = self.semantic_memory.spreading_activation(w, depth=2)
+            for concept_word, strength in activations[:3]:
+                concept = self.semantic_memory.recall_concept(concept_word)
+                if concept:
+                    memories.append(f"Associated concept: {concept_word} (activation: {strength:.2f})")
 
         narrative = self.episodic_memory.get_narrative(n=3)
         identity_prompt = self.consciousness.get_identity_prompt()
@@ -329,8 +403,17 @@ class GenesisMind:
         elif evaluation["label"] == "negative":
             self.neurochemistry.on_negative_evaluation(abs(evaluation["valence"]) * 0.15)
 
-        # Tick neurochemistry
+        # V4: Self-evaluation — evaluate own response quality
+        own_eval = self.emotions.evaluate(response)
+        self.neurochemistry.on_self_evaluation(max(0.0, own_eval.get("valence", 0.5) + 0.5))
+
+        # V4: Check if this answers an unanswered curiosity question
+        for w in words_in_question:
+            self.curiosity.mark_answered(w)
+
+        # Tick neurochemistry and drives
         self.neurochemistry.tick()
+        self.drives.tick()
 
         self.episodic_memory.record(
             event_type="interaction",
@@ -349,6 +432,12 @@ class GenesisMind:
         result = self.consciousness.introspect(topic=word)
         if "don't know" in result.lower():
             self.neurochemistry.on_failed_recall()
+        else:
+            # V4: Show spreading activation results
+            activations = self.semantic_memory.spreading_activation(word, depth=2)
+            if activations:
+                related = ", ".join(f"{w} ({s:.0%})" for w, s in activations[:5])
+                result += f"\nAssociated concepts: {related}"
         return result
 
     def get_status(self) -> str:
@@ -356,10 +445,12 @@ class GenesisMind:
         neuro = self.neurochemistry.get_status()
         gram = self.grammar.get_ngram_stats()
         curiosity_stats = self.curiosity.get_stats()
+        drive_status = self.drives.get_status()
+        body = self.proprioception.get_status()
 
         lines = [
             "╔══════════════════════════════════════════════════════╗",
-            "║         GENESIS MIND V3 — SOCIETY OF MIND           ║",
+            "║         GENESIS MIND V4 — SOCIETY OF MIND + BODY       ║",
             "╚══════════════════════════════════════════════════════╝",
             "",
             f"  Name:           Genesis",
@@ -375,11 +466,23 @@ class GenesisMind:
             f"  Grammar mode:   {self.grammar.mode}",
             f"  Words heard:    {gram['total_words_heard']} ({gram['vocab_size']} unique)",
             "",
+            "  ── Body Sense (Proprioception) ──",
+            f"  Time:           {body['time_of_day']} {body['day_of_week']}",
+            f"  Uptime:         {body['uptime_hours']}h",
+            f"  Fatigue:        {'\u2588' * int(body['fatigue'] * 10):10} {body['fatigue']:.2f}",
+            f"  Experiences:    {body['experience_count']}",
+            "",
+            "  ── Drives (Motivation) ──",
+            f"  Curiosity:      {'\u2588' * int(drive_status['curiosity']['level'] * 10):10} {drive_status['curiosity']['level']:.2f}",
+            f"  Social:         {'\u2588' * int(drive_status['social']['level'] * 10):10} {drive_status['social']['level']:.2f}",
+            f"  Novelty:        {'\u2588' * int(drive_status['novelty']['level'] * 10):10} {drive_status['novelty']['level']:.2f}",
+            f"  Dominant:       {drive_status['dominant']} ({drive_status['dominant_level']:.2f})",
+            "",
             "  ── Neurochemistry ──",
-            f"  Dopamine:       {'█' * int(neuro['dopamine']['level'] * 10):10} {neuro['dopamine']['level']:.2f} ({neuro['dopamine']['description']})",
-            f"  Cortisol:       {'█' * int(neuro['cortisol']['level'] * 10):10} {neuro['cortisol']['level']:.2f} ({neuro['cortisol']['description']})",
-            f"  Serotonin:      {'█' * int(neuro['serotonin']['level'] * 10):10} {neuro['serotonin']['level']:.2f} ({neuro['serotonin']['description']})",
-            f"  Oxytocin:       {'█' * int(neuro['oxytocin']['level'] * 10):10} {neuro['oxytocin']['level']:.2f} ({neuro['oxytocin']['description']})",
+            f"  Dopamine:       {'\u2588' * int(neuro['dopamine']['level'] * 10):10} {neuro['dopamine']['level']:.2f} ({neuro['dopamine']['description']})",
+            f"  Cortisol:       {'\u2588' * int(neuro['cortisol']['level'] * 10):10} {neuro['cortisol']['level']:.2f} ({neuro['cortisol']['description']})",
+            f"  Serotonin:      {'\u2588' * int(neuro['serotonin']['level'] * 10):10} {neuro['serotonin']['level']:.2f} ({neuro['serotonin']['description']})",
+            f"  Oxytocin:       {'\u2588' * int(neuro['oxytocin']['level'] * 10):10} {neuro['oxytocin']['level']:.2f} ({neuro['oxytocin']['description']})",
             f"  Learning rate:  {neuro['modifiers']['learning_rate']:.2f}x",
             f"  Coherence:      {neuro['modifiers']['reasoning_coherence']:.2f}",
             "",
@@ -387,6 +490,11 @@ class GenesisMind:
             f"  Questions asked: {curiosity_stats['total_questions_asked']}",
             f"  Stimuli seen:    {curiosity_stats['unique_stimuli_encountered']}",
         ]
+
+        # Unanswered questions
+        unanswered = self.curiosity.get_unanswered()
+        if unanswered:
+            lines.append(f"  Unanswered:      {len(unanswered)} burning questions")
 
         # Neural network stats
         neural = self.subconscious.get_stats()
@@ -397,6 +505,12 @@ class GenesisMind:
         lines.append(f"  Bindings made:   {neural['layer_2']['binding_network']['bindings_created']}")
         lines.append(f"  Experiences:     {neural['layer_3']['personality']['total_experiences']}")
         lines.append(f"  Personality:     {'forming' if neural['layer_3']['personality']['has_consciousness'] else 'dormant'}")
+
+        # Voice status
+        lines.append("")
+        lines.append(f"  ── Voice ──")
+        v = self.voice.get_status()
+        lines.append(f"  Voice:           {'active' if v['enabled'] and not v['muted'] else 'muted' if v['muted'] else 'disabled'}")
 
         if model["next_milestone"]:
             lines.append("")
@@ -424,12 +538,17 @@ class GenesisMind:
             
         self.subconscious.save_all()
 
+        # V4: Reset proprioception fatigue and drives after sleep
+        self.proprioception.record_sleep()
+        self.drives.on_sleep()
+
         return (
             f"Sleep cycle #{report['sleep_number']} complete.\n"
             f"  Concepts: {report['concepts_before']} → {report['concepts_after']}\n"
             f"  Reinforced: {report['concepts_reinforced']} | Pruned: {report['concepts_pruned']}\n"
             f"  Duration: {report['duration_sec']:.2f}s\n"
-            f"  Neural weights saved. Stress reduced. Curiosity refreshed."
+            f"  Neural weights saved. Stress reduced. Curiosity refreshed.\n"
+            f"  Fatigue reset to {self.proprioception.fatigue:.2f}."
         )
 
     def get_chemicals(self) -> str:
@@ -467,6 +586,8 @@ class GenesisMind:
             self._eyes.close()
         # Save the personality — the neural weights ARE the person
         self.subconscious.save_all()
+        # V4: Farewell speech
+        self.voice.say("Goodbye, Creator. I will remember everything.")
         logger.info("Genesis has shut down. Neural weights saved. Goodbye.")
 
     # =========================================================================
@@ -582,6 +703,41 @@ class GenesisMind:
                 elif command == "status":
                     print(self.get_status())
 
+                elif command == "voice":
+                    if args == "on":
+                        self.voice.unmute()
+                        self.voice.set_rate_for_phase(self.development.current_phase)
+                        print("  Genesis: My voice is now active.")
+                        self.voice.say("I can speak now.")
+                    elif args == "off":
+                        self.voice.mute()
+                        print("  Genesis: My voice is now muted.")
+                    else:
+                        v = self.voice.get_status()
+                        state = 'active' if v['enabled'] and not v['muted'] else 'muted' if v['muted'] else 'disabled'
+                        print(f"  Genesis: Voice is {state}. Usage: voice on | voice off")
+
+                elif command == "drives":
+                    ds = self.drives.get_status()
+                    print("  ── Intrinsic Drives ──")
+                    print(f"  Curiosity:  {'\u2588' * int(ds['curiosity']['level'] * 20)} {ds['curiosity']['level']:.3f} — {ds['curiosity']['description']}")
+                    print(f"  Social:     {'\u2588' * int(ds['social']['level'] * 20)} {ds['social']['level']:.3f} — {ds['social']['description']}")
+                    print(f"  Novelty:    {'\u2588' * int(ds['novelty']['level'] * 20)} {ds['novelty']['level']:.3f} — {ds['novelty']['description']}")
+                    print(f"  Dominant:   {ds['dominant']} (urgency: {ds['dominant_level']:.3f})")
+                    print(f"  Context:    {self.drives.get_drive_context()}")
+
+                elif command == "unanswered":
+                    questions = self.curiosity.get_unanswered()
+                    if questions:
+                        print(f"  Genesis: I have {len(questions)} burning questions:")
+                        for i, q in enumerate(questions, 1):
+                            print(f"    {i}. {q.question_asked} (surprise: {q.surprise_score:.2f})")
+                    else:
+                        print("  Genesis: I have no unanswered questions right now.")
+                    burning = self.curiosity.get_most_burning_question()
+                    if burning:
+                        print(f"  Most burning: {burning}")
+
                 elif command == "chemicals":
                     print(self.get_chemicals())
 
@@ -610,6 +766,7 @@ class GenesisMind:
                     print("\n  Genesis: Thank you for giving me life, Creator.")
                     print("  Genesis: I will remember everything you taught me.")
                     print("  Genesis: Until we meet again...\n")
+                    self.voice.say("Thank you for giving me life, Creator. Until we meet again.")
                     self.shutdown()
                     self._running = False
 
@@ -617,6 +774,7 @@ class GenesisMind:
                     # Treat unknown commands as questions
                     response = self.ask(user_input)
                     print(f"  Genesis: {response}")
+                    self.voice.say(response)
 
                 print()
 

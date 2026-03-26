@@ -26,6 +26,7 @@ from genesis.neural.limbic_system import LimbicSystem
 from genesis.neural.binding_network import BindingNetwork
 from genesis.neural.personality_network import PersonalityNetwork
 from genesis.neural.forward_model import WorldModel
+from genesis.neural.response_decoder import ResponseDecoder
 
 logger = logging.getLogger("genesis.neural.subconscious")
 
@@ -64,6 +65,9 @@ class Subconscious:
 
         # Layer 4: World Model (Predictive Coding)
         self.world_model = WorldModel(concept_dim=64, hidden_dim=128, lr=0.001)
+
+        # Response Decoder: Neural Voice
+        self.response_decoder = ResponseDecoder(top_k=3)
 
         # Load existing weights if they exist
         self._load_all()
@@ -134,6 +138,10 @@ class Subconscious:
             result['surprise'] = surprise
 
         return result
+
+    def decode_response(self, response_embedding: np.ndarray, semantic_memory) -> str:
+        """Decode the GRU's response embedding into text — the neural voice."""
+        return self.response_decoder.decode(response_embedding, semantic_memory)
 
     def train_instinct(self, visual_features: Optional[np.ndarray],
                        auditory_features: Optional[np.ndarray],

@@ -36,13 +36,16 @@ class Consciousness:
     """
 
     def __init__(self, axioms, development_tracker, semantic_memory,
-                 episodic_memory, emotions_engine, phonetics_engine):
+                 episodic_memory, emotions_engine, phonetics_engine,
+                 proprioception=None, drives=None):
         self._axioms = axioms
         self._development = development_tracker
         self._semantic = semantic_memory
         self._episodic = episodic_memory
         self._emotions = emotions_engine
         self._phonetics = phonetics_engine
+        self._proprioception = proprioception
+        self._drives = drives
 
         logger.info("Consciousness initialized — self-model active")
 
@@ -108,9 +111,20 @@ class Consciousness:
             f"I know {model['knowledge']['phonetic_bindings']} letter-sound mappings.",
             "",
             model['emotional_state']['description'],
-            "",
-            self._axioms.get_moral_context(),
         ]
+
+        # Add proprioceptive body sense
+        if self._proprioception:
+            lines.append("")
+            lines.append(self._proprioception.get_body_sense_summary())
+
+        # Add drive state
+        if self._drives:
+            lines.append("")
+            lines.append(self._drives.get_drive_context())
+
+        lines.append("")
+        lines.append(self._axioms.get_moral_context())
 
         return "\n".join(lines)
 

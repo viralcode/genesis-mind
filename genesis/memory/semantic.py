@@ -24,7 +24,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 from pathlib import Path
 
 import numpy as np
@@ -276,6 +276,65 @@ class SemanticMemory:
     def count(self) -> int:
         """Total number of concepts."""
         return len(self._concepts)
+
+    def get_all_embeddings(self) -> List[np.ndarray]:
+        """Return all text embeddings for surprise/novelty comparison."""
+        embeddings = []
+        for concept in self._concepts.values():
+            if concept.text_embedding is not None:
+                embeddings.append(np.array(concept.text_embedding))
+        return embeddings
+
+    def get_all_concepts(self) -> List[Concept]:
+        """Return all concepts (for response decoder and introspection)."""
+        return list(self._concepts.values())
+
+    def spreading_activation(self, word: str, depth: int = 2,
+                              decay: float = 0.6) -> List[Tuple[str, float]]:
+        """
+        Spreading activation through the concept graph.
+
+        Starting from a concept, follows relationships to find
+        associated concepts with diminishing activation strength.
+
+        Example: 'apple' → relationships=['fruit','red']
+                 'fruit' → relationships=['banana','cherry']
+                 Returns: [('fruit', 0.6), ('red', 0.6), ('banana', 0.36), ('cherry', 0.36)]
+
+        Args:
+            word: Starting concept word
+            depth: How many hops to follow (default 2)
+            decay: Activation strength multiplier per hop (default 0.6)
+
+        Returns:
+            List of (concept_word, activation_strength) tuples, sorted by strength
+        """
+        key = word.lower().strip()
+        if key not in self._concepts:
+            return []
+
+        activated = {}  # word → strength
+        frontier = [(key, 1.0)]
+        visited = {key}
+
+        for d in range(depth):
+            next_frontier = []
+            for current_word, strength in frontier:
+                concept = self._concepts.get(current_word)
+                if concept is None:
+                    continue
+                for rel in concept.relationships:
+                    rel_key = rel.lower().strip()
+                    if rel_key not in visited and rel_key in self._concepts:
+                        activation = strength * decay
+                        activated[rel_key] = max(activated.get(rel_key, 0), activation)
+                        visited.add(rel_key)
+                        next_frontier.append((rel_key, activation))
+            frontier = next_frontier
+
+        # Sort by activation strength descending
+        result = sorted(activated.items(), key=lambda x: x[1], reverse=True)
+        return result
 
     def get_summary(self) -> Dict:
         """Get a summary of the semantic memory state."""

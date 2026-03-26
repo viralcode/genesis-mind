@@ -116,6 +116,19 @@ PHASES = [
     ),
 ]
 
+# Secondary requirements that enrich phase gating beyond concept count
+# Each phase can have optional secondary signals that must also be met
+PHASE_SECONDARY_REQUIREMENTS = {
+    # Phase 2: needs some grammar exposure
+    2: {"min_grammar_vocab": 10},
+    # Phase 3: needs moderate vocabulary and some curiosity
+    3: {"min_grammar_vocab": 50, "min_questions_asked": 5},
+    # Phase 4: needs prediction accuracy and deeper grammar
+    4: {"min_grammar_vocab": 200, "min_prediction_accuracy": 0.2, "min_sleep_cycles": 3},
+    # Phase 5: comprehensive maturity
+    5: {"min_grammar_vocab": 500, "min_prediction_accuracy": 0.4, "min_questions_asked": 50, "min_sleep_cycles": 10},
+}
+
 
 class DevelopmentTracker:
     """
@@ -147,47 +160,73 @@ class DevelopmentTracker:
     def current_phase_info(self) -> DevelopmentalPhase:
         return PHASES[self._current_phase]
 
-    def evaluate_progression(self, concept_count: int, avg_strength: float = 0.0) -> bool:
+    def evaluate_progression(self, concept_count: int, avg_strength: float = 0.0,
+                             grammar_vocab_size: int = 0, prediction_accuracy: float = 0.0,
+                             questions_asked: int = 0, sleep_cycles: int = 0) -> bool:
         """
         Check if Genesis should advance to the next phase.
+
+        Uses multi-signal gating: concept count is the primary gate,
+        but secondary signals (grammar, prediction, curiosity) can
+        also be required for higher phases.
 
         Returns True if a phase transition occurred.
         """
         if self._current_phase >= len(PHASES) - 1:
             return False  # Already at max phase
 
-        next_phase = PHASES[self._current_phase + 1]
-        if concept_count >= next_phase.min_concepts:
-            old_phase = self._current_phase
-            self._current_phase += 1
+        next_phase_num = self._current_phase + 1
+        next_phase = PHASES[next_phase_num]
 
-            transition = {
-                "from_phase": old_phase,
-                "to_phase": self._current_phase,
-                "timestamp": datetime.now().isoformat(),
-                "concept_count": concept_count,
-                "avg_strength": avg_strength,
-            }
-            self._phase_history.append(transition)
+        # Primary gate: concept count
+        if concept_count < next_phase.min_concepts:
+            return False
 
-            logger.info(
-                "═══════════════════════════════════════════════════════")
-            logger.info(
-                "  DEVELOPMENTAL MILESTONE: Phase %d (%s) → Phase %d (%s)",
-                old_phase, PHASES[old_phase].name,
-                self._current_phase, PHASES[self._current_phase].name,
-            )
-            logger.info(
-                "  Concepts mastered: %d | Average strength: %.2f",
-                concept_count, avg_strength,
-            )
-            logger.info(
-                "═══════════════════════════════════════════════════════")
+        # Secondary gates: check additional requirements for this phase
+        secondary = PHASE_SECONDARY_REQUIREMENTS.get(next_phase_num, {})
+        if secondary:
+            if grammar_vocab_size < secondary.get("min_grammar_vocab", 0):
+                return False
+            if prediction_accuracy < secondary.get("min_prediction_accuracy", 0):
+                return False
+            if questions_asked < secondary.get("min_questions_asked", 0):
+                return False
+            if sleep_cycles < secondary.get("min_sleep_cycles", 0):
+                return False
 
-            self._save()
-            return True
+        # All gates passed — phase transition!
+        old_phase = self._current_phase
+        self._current_phase += 1
 
-        return False
+        transition = {
+            "from_phase": old_phase,
+            "to_phase": self._current_phase,
+            "timestamp": datetime.now().isoformat(),
+            "concept_count": concept_count,
+            "avg_strength": avg_strength,
+            "grammar_vocab_size": grammar_vocab_size,
+            "prediction_accuracy": prediction_accuracy,
+            "questions_asked": questions_asked,
+            "sleep_cycles": sleep_cycles,
+        }
+        self._phase_history.append(transition)
+
+        logger.info(
+            "═══════════════════════════════════════════════════════")
+        logger.info(
+            "  DEVELOPMENTAL MILESTONE: Phase %d (%s) → Phase %d (%s)",
+            old_phase, PHASES[old_phase].name,
+            self._current_phase, PHASES[self._current_phase].name,
+        )
+        logger.info(
+            "  Concepts: %d | Grammar vocab: %d | Prediction acc: %.2f",
+            concept_count, grammar_vocab_size, prediction_accuracy,
+        )
+        logger.info(
+            "═══════════════════════════════════════════════════════")
+
+        self._save()
+        return True
 
     def has_capability(self, capability: str) -> bool:
         """Check if the current phase supports a given capability."""

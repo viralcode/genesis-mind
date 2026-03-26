@@ -18,6 +18,7 @@ after a configurable interval (default: every 8 hours of runtime).
 """
 
 import logging
+import time
 from datetime import datetime
 from typing import Dict, Optional
 
@@ -34,14 +35,21 @@ class SleepCycle:
 
     def __init__(self, consolidation_strength_boost: float = 0.1,
                  pruning_threshold: float = 0.01,
-                 decay_amount: float = 0.005):
+                 decay_amount: float = 0.005,
+                 auto_sleep_experiences: int = 50,
+                 auto_sleep_hours: float = 2.0):
         self.consolidation_strength_boost = consolidation_strength_boost
         self.pruning_threshold = pruning_threshold
         self.decay_amount = decay_amount
+        self._auto_sleep_experiences = auto_sleep_experiences
+        self._auto_sleep_hours = auto_sleep_hours
         self._sleep_count = 0
         self._last_sleep: Optional[str] = None
+        self._last_sleep_time: float = time.time()
+        self._experiences_since_sleep: int = 0
 
-        logger.info("Sleep cycle initialized")
+        logger.info("Sleep cycle initialized (auto after %d experiences or %.1f hours)",
+                     auto_sleep_experiences, auto_sleep_hours)
 
     def consolidate(self, semantic_memory, episodic_memory, phonetics_engine=None) -> Dict:
         """
@@ -107,6 +115,8 @@ class SleepCycle:
         report["duration_sec"] = (datetime.now() - start_time).total_seconds()
 
         self._last_sleep = datetime.now().isoformat()
+        self._last_sleep_time = time.time()
+        self._experiences_since_sleep = 0
 
         logger.info("╔══════════════════════════════════════════════╗")
         logger.info("║         SLEEP CYCLE COMPLETE                 ║")
@@ -118,6 +128,40 @@ class SleepCycle:
 
         return report
 
+    def record_experience(self):
+        """Called after each experience to track fatigue."""
+        self._experiences_since_sleep += 1
+
+    def should_sleep(self) -> bool:
+        """
+        Check if Genesis should automatically go to sleep.
+
+        Triggers when either:
+        - Too many experiences since last sleep (cognitive fatigue)
+        - Too much time has passed since last sleep (circadian)
+        """
+        if self._experiences_since_sleep >= self._auto_sleep_experiences:
+            logger.info("Auto-sleep triggered: %d experiences since last sleep",
+                         self._experiences_since_sleep)
+            return True
+
+        hours_since = (time.time() - self._last_sleep_time) / 3600.0
+        if hours_since >= self._auto_sleep_hours:
+            logger.info("Auto-sleep triggered: %.1f hours since last sleep", hours_since)
+            return True
+
+        return False
+
+    def get_fatigue(self) -> float:
+        """
+        Current fatigue level from 0.0 (fresh) to 1.0 (exhausted).
+
+        Based on both experience count and elapsed time.
+        """
+        exp_fatigue = min(1.0, self._experiences_since_sleep / self._auto_sleep_experiences)
+        time_fatigue = min(1.0, (time.time() - self._last_sleep_time) / (self._auto_sleep_hours * 3600))
+        return max(exp_fatigue, time_fatigue)
+
     @property
     def sleep_count(self) -> int:
         return self._sleep_count
@@ -127,4 +171,4 @@ class SleepCycle:
         return self._last_sleep
 
     def __repr__(self) -> str:
-        return f"SleepCycle(count={self._sleep_count}, last='{self._last_sleep}')"
+        return f"SleepCycle(count={self._sleep_count}, last='{self._last_sleep}', fatigue={self.get_fatigue():.2f})"

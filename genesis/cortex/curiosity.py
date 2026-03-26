@@ -25,7 +25,7 @@ import numpy as np
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional
-from collections import defaultdict
+from collections import defaultdict, deque
 
 logger = logging.getLogger("genesis.cortex.curiosity")
 
@@ -62,6 +62,9 @@ class CuriosityEngine:
         # Recent curiosity events
         self._history: List[CuriosityEvent] = []
         self._max_history = max_history
+
+        # Unanswered question queue — questions asked but never resolved
+        self._unanswered: deque = deque(maxlen=50)
 
         # Cooldown tracking
         self._last_question_time: float = 0.0
@@ -165,6 +168,9 @@ class CuriosityEngine:
         if len(self._history) > self._max_history:
             self._history.pop(0)
 
+        # Track this as unanswered until explicitly resolved
+        self._unanswered.append(event)
+
         return question
 
     def get_stats(self) -> Dict:
@@ -176,6 +182,34 @@ class CuriosityEngine:
             "cooldown_sec": self._cooldown_sec,
             "surprise_threshold": self._surprise_threshold,
         }
+
+    def mark_answered(self, stimulus_key: str):
+        """Mark a curiosity question as answered (the Creator responded)."""
+        for event in self._unanswered:
+            if event.stimulus == stimulus_key and not event.answered:
+                event.answered = True
+                break
+        # Remove answered events from the queue
+        self._unanswered = deque(
+            [e for e in self._unanswered if not e.answered],
+            maxlen=50,
+        )
+
+    def get_unanswered(self) -> List[CuriosityEvent]:
+        """Return all unanswered curiosity questions."""
+        return list(self._unanswered)
+
+    def get_most_burning_question(self) -> Optional[str]:
+        """
+        Return the most urgent unanswered question.
+
+        Priority: highest surprise score among unanswered questions.
+        Returns None if all questions have been answered.
+        """
+        if not self._unanswered:
+            return None
+        most_burning = max(self._unanswered, key=lambda e: e.surprise_score)
+        return most_burning.question_asked
 
     def reset_habituation(self):
         """Reset habituation (e.g., after sleep — the child is fresh again)."""

@@ -181,6 +181,34 @@ class Neurochemistry:
         self.dopamine.spike(0.12)
         logger.debug("💚 Curiosity satisfied → dopamine +0.12")
 
+    def on_self_evaluation(self, quality: float):
+        """
+        Genesis evaluates its own output quality.
+
+        quality: 0.0 (terrible) to 1.0 (excellent)
+        Positive self-assessment → dopamine reward
+        Negative self-assessment → cortisol + learning signal
+        """
+        if quality > 0.6:
+            self.dopamine.spike(quality * 0.1)
+            self.serotonin.spike(quality * 0.05)
+            logger.debug("💚 Self-evaluation positive (%.2f) → dopamine +%.2f", quality, quality * 0.1)
+        elif quality < 0.3:
+            self.cortisol.spike((1.0 - quality) * 0.08)
+            self.dopamine.suppress(0.05)
+            logger.debug("🔴 Self-evaluation negative (%.2f) → cortisol +%.2f", quality, (1.0 - quality) * 0.08)
+
+    def on_fatigue(self, fatigue_level: float):
+        """
+        Fatigue suppresses serotonin and elevates cortisol.
+
+        fatigue_level: 0.0 (fresh) to 1.0 (exhausted)
+        """
+        if fatigue_level > 0.5:
+            self.serotonin.suppress(fatigue_level * 0.05)
+            self.cortisol.spike(fatigue_level * 0.03)
+            logger.debug("😴 Fatigue (%.2f) → serotonin suppressed", fatigue_level)
+
     # =========================================================================
     # Behavioral Modifiers — how chemicals alter cognition
     # =========================================================================

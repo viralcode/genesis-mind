@@ -88,6 +88,26 @@ class GrowthConfig:
     # Sleep cycle
     consolidation_interval_hours: float = 8.0   # How often to consolidate
 
+    # Auto-sleep triggers
+    auto_sleep_experiences: int = 50     # Sleep after N experiences
+    auto_sleep_hours: float = 2.0       # Sleep after N hours awake
+
+
+@dataclass
+class VoiceConfig:
+    """Configuration for the voice (TTS) output."""
+    enabled: bool = True                # Whether to speak aloud
+    rate: int = 150                     # Words per minute
+    volume: float = 0.9                 # 0.0 to 1.0
+
+
+@dataclass
+class DrivesConfig:
+    """Configuration for the intrinsic drive system."""
+    curiosity_rise_rate: float = 0.008   # How fast curiosity builds
+    social_rise_rate: float = 0.012      # How fast social need builds
+    novelty_rise_rate: float = 0.006     # How fast boredom builds
+
 
 @dataclass
 class GenesisConfig:
@@ -97,6 +117,8 @@ class GenesisConfig:
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     cortex: CortexConfig = field(default_factory=CortexConfig)
     growth: GrowthConfig = field(default_factory=GrowthConfig)
+    voice: VoiceConfig = field(default_factory=VoiceConfig)
+    drives: DrivesConfig = field(default_factory=DrivesConfig)
 
     # --- Identity ---
     creator_name: str = "Jijo John"
