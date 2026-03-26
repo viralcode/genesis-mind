@@ -213,13 +213,15 @@ class GenesisMind:
         return self._eyes
 
     def _get_ears(self):
-        from genesis.senses.ears import Ears
-        return Ears(
-            sample_rate=self.config.senses.sample_rate,
-            chunk_duration_sec=self.config.senses.chunk_duration_sec,
-            silence_threshold=self.config.senses.silence_threshold,
-            whisper_model_name=self.config.senses.whisper_model,
-        )
+        if not hasattr(self, '_ears_instance') or self._ears_instance is None:
+            from genesis.senses.ears import Ears
+            self._ears_instance = Ears(
+                sample_rate=self.config.senses.sample_rate,
+                chunk_duration_sec=self.config.senses.chunk_duration_sec,
+                silence_threshold=self.config.senses.silence_threshold,
+                whisper_model_name=self.config.senses.whisper_model,
+            )
+        return self._ears_instance
 
     # =========================================================================
     # Teaching Interface

@@ -109,6 +109,12 @@ class BrainDaemon:
         self._output_callback: Optional[Callable[[str], None]] = None
         self._running = False
 
+        # Speech cooldown timers — prevent repetitive babble spam
+        self._last_social_emit = 0.0
+        self._last_monologue_emit = 0.0
+        self._social_cooldown = 60.0    # Min seconds between social babbles
+        self._monologue_cooldown = 45.0  # Min seconds between inner monologue
+
         # Configure all brain threads
         self._setup_threads()
 
@@ -354,12 +360,20 @@ class BrainDaemon:
         dominant = status['dominant']
         level = status['dominant_level']
 
+        import time
+        now = time.time()
+
         if level > 0.85:
             # Drive is critically high — Genesis should express it (phase-gated)
             if dominant == 'social':
-                msg = self._phase_say("social")
-                self._emit(msg, "💬")
-                self.mind.voice.say(msg)
+                # Cooldown: don't spam social babble every 5s
+                if now - self._last_social_emit >= self._social_cooldown:
+                    msg = self._phase_say("social")
+                    self._emit(msg, "💬")
+                    self.mind.voice.say(msg)
+                    self._last_social_emit = now
+                    # Partially satisfy drive to prevent constant re-trigger
+                    self.mind.drives.social_need.satisfy(0.3)
             elif dominant == 'curiosity':
                 if self._get_phase() >= 3:
                     burning = self.mind.curiosity.get_most_burning_question()
@@ -419,7 +433,12 @@ class BrainDaemon:
             train=False,  # Don't train on empty input
         )
 
-        # Decode the neural network's spontaneous output
+        # Decode the neural network's spontaneous output (with cooldown)
+        import time
+        now = time.time()
+        if now - self._last_monologue_emit < self._monologue_cooldown:
+            return  # Too soon since last monologue
+
         neural_voice = self.mind.subconscious.decode_response(
             result['personality_response'], self.mind.semantic_memory
         )
@@ -427,6 +446,7 @@ class BrainDaemon:
         # Build a thought from the neural state
         if neural_voice and neural_voice not in ("(silence)", "(no words yet)"):
             self._emit(f"...{neural_voice}...", "💭")
+            self._last_monologue_emit = now
 
     # =========================================================================
     # Thread 5: Circadian Monitor
@@ -560,6 +580,9 @@ class BrainDaemon:
             text = result.text.strip()
             if len(text) > 2:  # Filter out pure noise artifacts
                 self._emit(f"Heard: '{text}'", "👂")
+
+                # Hearing voice = someone is present → partially satisfy social drive
+                self.mind.drives.social_need.satisfy(0.2)
 
                 # 1. Apply Attention Filter
                 salience = self.mind.attention.compute_salience(
