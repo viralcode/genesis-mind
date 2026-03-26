@@ -36,16 +36,18 @@ from genesis.growth.development import DevelopmentTracker
 from genesis.growth.sleep import SleepCycle
 from genesis.soul.consciousness import Consciousness
 from genesis.soul.neurochemistry import Neurochemistry
+from genesis.neural.subconscious import Subconscious
 
 logger = logging.getLogger("genesis.main")
 
 
 class GenesisMind:
     """
-    The complete Genesis Mind system (V2).
+    The complete Genesis Mind system (V3: Society of Mind).
 
     Now includes continuous consciousness, curiosity, dual-mode grammar,
-    and a neurochemical emotion system that directly modifies learning.
+    a neurochemical emotion system, AND a cascading neural network
+    architecture where the weights physically become the personality.
     """
 
     def __init__(self, config: GenesisConfig = None):
@@ -93,6 +95,11 @@ class GenesisMind:
         # --- V2: Neurochemistry ---
         self.neurochemistry = Neurochemistry()
 
+        # --- V3: Subconscious Neural Cascade (Society of Mind) ---
+        self.subconscious = Subconscious(
+            weights_dir=GENESIS_HOME / "neural_weights",
+        )
+
         # --- Initialize Growth ---
         self.development = DevelopmentTracker(storage_path=GENESIS_HOME / "development_state.json")
         self.sleep_cycle = SleepCycle()
@@ -110,7 +117,7 @@ class GenesisMind:
         # --- V2: Perception Loop (lazy init) ---
         self._perception_loop = None
 
-        logger.info("Genesis Mind V2 fully initialized")
+        logger.info("Genesis Mind V3 (Society of Mind) fully initialized")
 
     def _get_eyes(self):
         if self._eyes is None:
@@ -204,6 +211,33 @@ class GenesisMind:
 
         # Grammar: learn from the teaching interaction
         self.grammar.learn_from_speech(f"this is {word}")
+
+        # V3: Neural cascade — train ALL subconscious networks on this experience
+        raw_frame = None
+        if use_camera and self._eyes and hasattr(self._eyes, '_last_frame') and self._eyes._last_frame is not None:
+            raw_frame = self._eyes._last_frame
+
+        neural_result = self.subconscious.process_experience(
+            visual_frame=raw_frame,
+            context=None,
+            train=True,
+        )
+
+        # Train limbic instinct: "this sensory pattern = positive"
+        self.subconscious.train_instinct(
+            visual_features=neural_result['visual_latent'],
+            auditory_features=neural_result['auditory_latent'],
+            target_chemicals={
+                "dopamine": self.neurochemistry.dopamine.level,
+                "cortisol": self.neurochemistry.cortisol.level,
+                "serotonin": self.neurochemistry.serotonin.level,
+                "oxytocin": self.neurochemistry.oxytocin.level,
+            },
+        )
+
+        # Save neural weights periodically
+        if self.semantic_memory.count() % 5 == 0:
+            self.subconscious.save_all()
 
         milestone = self.consciousness.check_developmental_progress()
 
@@ -314,7 +348,7 @@ class GenesisMind:
 
         lines = [
             "╔══════════════════════════════════════════════════════╗",
-            "║              GENESIS MIND V2 — STATUS               ║",
+            "║         GENESIS MIND V3 — SOCIETY OF MIND           ║",
             "╚══════════════════════════════════════════════════════╝",
             "",
             f"  Name:           Genesis",
@@ -343,6 +377,18 @@ class GenesisMind:
             f"  Stimuli seen:    {curiosity_stats['unique_stimuli_encountered']}",
         ]
 
+        # Neural network stats
+        neural = self.subconscious.get_stats()
+        lines.append("")
+        lines.append("  ── Neural Networks (The Person) ──")
+        lines.append(f"  Total params:    {self.subconscious.get_total_params():,}")
+        lines.append(f"  Frames seen:     {neural['layer_1']['visual_cortex']['frames_seen']}")
+        lines.append(f"  Audio chunks:    {neural['layer_1']['auditory_cortex']['chunks_heard']}")
+        lines.append(f"  Instincts formed: {neural['layer_1']['limbic_system']['training_steps']}")
+        lines.append(f"  Bindings made:   {neural['layer_2']['binding_network']['bindings_created']}")
+        lines.append(f"  Experiences:     {neural['layer_3']['personality']['total_experiences']}")
+        lines.append(f"  Personality:     {'forming' if neural['layer_3']['personality']['has_consciousness'] else 'dormant'}")
+
         if model["next_milestone"]:
             lines.append("")
             lines.append(
@@ -360,13 +406,14 @@ class GenesisMind:
         )
         self.neurochemistry.on_sleep_consolidation()
         self.curiosity.reset_habituation()
+        self.subconscious.save_all()
 
         return (
             f"Sleep cycle #{report['sleep_number']} complete.\n"
             f"  Concepts: {report['concepts_before']} → {report['concepts_after']}\n"
             f"  Reinforced: {report['concepts_reinforced']} | Pruned: {report['concepts_pruned']}\n"
             f"  Duration: {report['duration_sec']:.2f}s\n"
-            f"  Stress reduced. Curiosity refreshed."
+            f"  Neural weights saved. Stress reduced. Curiosity refreshed."
         )
 
     def get_chemicals(self) -> str:
@@ -402,7 +449,9 @@ class GenesisMind:
             self._perception_loop.stop()
         if self._eyes:
             self._eyes.close()
-        logger.info("Genesis has shut down. Goodbye.")
+        # Save the personality — the neural weights ARE the person
+        self.subconscious.save_all()
+        logger.info("Genesis has shut down. Neural weights saved. Goodbye.")
 
     # =========================================================================
     # Interactive Terminal Interface
@@ -421,10 +470,11 @@ class GenesisMind:
         print()
         print("╔══════════════════════════════════════════════════════════╗")
         print("║                                                        ║")
-        print("║          G E N E S I S   M I N D   V 2                 ║")
+        print("║       G E N E S I S   M I N D   V 3                   ║")
+        print("║         S O C I E T Y   O F   M I N D                 ║")
         print("║                                                        ║")
-        print("║   A Developmental AI That Learns Like a Child          ║")
-        print("║   Now with: Curiosity · Emotions · Grammar · Pain     ║")
+        print("║   A Developmental AI With Its Own Neural Networks      ║")
+        print("║   The weights ARE the personality. The data IS you.   ║")
         print("║                                                        ║")
         print("╚══════════════════════════════════════════════════════════╝")
         print()
