@@ -41,7 +41,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from genesis.neural.device import DEVICE, to_device
+from genesis.neural.device import DEVICE, strip_compile_prefix, to_device
 
 logger = logging.getLogger("genesis.neural.meta_controller")
 
@@ -237,7 +237,7 @@ class MetaController:
         if path.exists():
             try:
                 checkpoint = torch.load(path, map_location='cpu', weights_only=False)
-                self.network.load_state_dict(checkpoint['state_dict'])
+                self.network.load_state_dict(strip_compile_prefix(checkpoint['state_dict']))
                 self._avg_weights = checkpoint.get('avg_weights', self._avg_weights)
                 self._total_routes = checkpoint.get('total_routes', 0)
                 logger.info("Meta-controller loaded (%d prior routes)", self._total_routes)

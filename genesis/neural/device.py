@@ -65,6 +65,22 @@ def get_autocast_context():
     return nullcontext()
 
 
+def strip_compile_prefix(state_dict: dict) -> dict:
+    """
+    Strip '_orig_mod.' prefix from state_dict keys.
+    
+    torch.compile() wraps module keys with '_orig_mod.' prefix.
+    When saving a compiled model's state_dict, the keys retain this prefix.
+    On reload, the uncompiled model expects keys WITHOUT the prefix.
+    This function normalizes the keys so loading always works.
+    """
+    cleaned = {}
+    for k, v in state_dict.items():
+        new_key = k.replace("_orig_mod.", "")
+        cleaned[new_key] = v
+    return cleaned
+
+
 def try_compile(module: torch.nn.Module, name: str = "") -> torch.nn.Module:
     """
     Attempt to torch.compile() a module for free speedup.

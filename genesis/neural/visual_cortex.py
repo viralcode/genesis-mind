@@ -20,7 +20,7 @@ import logging
 import json
 from pathlib import Path
 
-from genesis.neural.device import DEVICE, to_device, try_compile, get_autocast_context
+from genesis.neural.device import DEVICE, to_device, try_compile, get_autocast_context, strip_compile_prefix
 from typing import Optional, Tuple
 
 import numpy as np
@@ -289,8 +289,8 @@ class VisualCortex:
             return
         try:
             checkpoint = torch.load(self._storage_path, map_location="cpu", weights_only=False)
-            self.encoder.load_state_dict(checkpoint["encoder"])
-            self.decoder.load_state_dict(checkpoint["decoder"])
+            self.encoder.load_state_dict(strip_compile_prefix(checkpoint["encoder"]))
+            self.decoder.load_state_dict(strip_compile_prefix(checkpoint["decoder"]))
             self.optimizer.load_state_dict(checkpoint["optimizer"])
             self._train_steps = checkpoint.get("train_steps", 0)
             self._total_loss = checkpoint.get("total_loss", 0.0)

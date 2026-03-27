@@ -24,7 +24,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from genesis.neural.device import DEVICE, to_device
+from genesis.neural.device import DEVICE, strip_compile_prefix, to_device
 
 logger = logging.getLogger("genesis.neural.forward_model")
 
@@ -122,7 +122,7 @@ class WorldModel:
         if path.exists():
             try:
                 checkpoint = torch.load(path, map_location='cpu', weights_only=False)
-                self.network.load_state_dict(checkpoint['state_dict'])
+                self.network.load_state_dict(strip_compile_prefix(checkpoint['state_dict']))
                 self._predictions_made = checkpoint.get('predictions', 0)
                 self._total_loss = checkpoint.get('loss', 0.0)
                 logger.info("World model loaded (%d prior predictions)", self._predictions_made)

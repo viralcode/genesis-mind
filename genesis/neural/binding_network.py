@@ -27,7 +27,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from genesis.neural.device import DEVICE, to_device
+from genesis.neural.device import DEVICE, strip_compile_prefix, to_device
 
 logger = logging.getLogger("genesis.neural.binding_network")
 
@@ -195,7 +195,7 @@ class BindingNetwork:
         if path.exists():
             try:
                 checkpoint = torch.load(path, map_location='cpu', weights_only=False)
-                self.network.load_state_dict(checkpoint['state_dict'])
+                self.network.load_state_dict(strip_compile_prefix(checkpoint['state_dict']))
                 self._bindings_created = checkpoint.get('bindings', 0)
                 self._training_steps = checkpoint.get('steps', 0)
                 self._total_loss = checkpoint.get('loss', 0.0)

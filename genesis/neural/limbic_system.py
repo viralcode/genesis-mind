@@ -30,7 +30,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from genesis.neural.device import DEVICE, to_device
+from genesis.neural.device import DEVICE, strip_compile_prefix, to_device
 
 logger = logging.getLogger("genesis.neural.limbic_system")
 
@@ -192,7 +192,7 @@ class LimbicSystem:
         if path.exists():
             try:
                 checkpoint = torch.load(path, map_location='cpu', weights_only=False)
-                self.network.load_state_dict(checkpoint['state_dict'])
+                self.network.load_state_dict(strip_compile_prefix(checkpoint['state_dict']))
                 self._reactions = checkpoint.get('reactions', 0)
                 self._training_steps = checkpoint.get('training_steps', 0)
                 self._total_loss = checkpoint.get('total_loss', 0.0)
