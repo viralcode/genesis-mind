@@ -49,6 +49,25 @@
 
         .col { display: flex; flex-direction: column; gap: 1rem; }
 
+        /* Camera Feed */
+        .vision-bar { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; padding: 1rem 1rem 0; max-width: 1920px; margin: 0 auto; }
+        @media (max-width: 1200px) { .vision-bar { grid-template-columns: 1fr; } }
+        .camera-panel { min-height: 240px; }
+        .camera-feed-container { position: relative; border-radius: 8px; overflow: hidden; background: #000; aspect-ratio: 4/3; max-height: 300px; }
+        .camera-img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+        .camera-placeholder { width: 100%; height: 200px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 0.9rem; background: rgba(0,0,0,0.5); border-radius: 8px; }
+        .live-tag { color: #66bb6a; animation: pulse-glow 2s ease-in-out infinite; }
+
+        /* Neural Activation Heatmap */
+        .neural-heatmap-panel { min-height: 240px; }
+        .activation-section { margin-bottom: 0.75rem; }
+        #heatmap-canvas { width: 100%; height: 60px; border-radius: 6px; background: rgba(0,0,0,0.3); image-rendering: pixelated; }
+        .routing-bars { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .route-bar { flex: 1; min-width: 60px; }
+        .route-bar .label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+        .route-fill-bg { height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
+        .route-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); }
+
         /* Header tweaks */
         .app-header h1 span { color: var(--accent-secondary); }
     </style>
@@ -72,7 +91,54 @@
         </div>
     </header>
 
-    <main class="dashboard-grid">
+    <main>
+        <!-- Camera Feed + Neural Activations (Full Width Top Bar) -->
+        <div class="vision-bar">
+            <!-- Live Camera Feed -->
+            <section class="glass-panel camera-panel">
+                <div class="panel-header">
+                    <h2>👁 GENESIS VISION</h2>
+                    <span class="capacity-tag live-tag">● LIVE</span>
+                </div>
+                <div class="camera-feed-container">
+                    <img id="camera-feed" src="/api/camera" alt="Genesis Vision" class="camera-img" onerror="this.style.display='none'; document.getElementById('camera-placeholder').style.display='flex';">
+                    <div id="camera-placeholder" class="camera-placeholder" style="display:none;">
+                        <span>📷 Camera Initializing...</span>
+                    </div>
+                </div>
+                <div class="stat-row" style="margin-top: 0.5rem;">
+                    <div class="mini-stat accent"><div class="label">Visual Emb</div><div class="value" id="vis-fresh">—</div></div>
+                    <div class="mini-stat"><div class="label">Age</div><div class="value" id="vis-age">—</div></div>
+                    <div class="mini-stat good"><div class="label">Heard</div><div class="value" id="heard-words">—</div></div>
+                </div>
+            </section>
+
+            <!-- Neural Activation Heatmap -->
+            <section class="glass-panel neural-heatmap-panel">
+                <div class="panel-header">
+                    <h2>🧠 NEURAL ACTIVATIONS</h2>
+                    <span class="capacity-tag" id="live-params">0 params</span>
+                </div>
+                <div class="activation-section">
+                    <div class="activation-label">GRU Hidden State (128-dim)</div>
+                    <canvas id="heatmap-canvas" width="512" height="60"></canvas>
+                </div>
+                <div class="activation-section">
+                    <div class="activation-label">Meta-Controller Routing</div>
+                    <div class="routing-bars" id="routing-container"></div>
+                </div>
+                <div class="activation-section">
+                    <div class="activation-label">Sensory Buffers</div>
+                    <div class="stat-row">
+                        <div class="mini-stat" id="buf-visual"><div class="label">Vision</div><div class="value">—</div></div>
+                        <div class="mini-stat" id="buf-auditory"><div class="label">Audio</div><div class="value">—</div></div>
+                        <div class="mini-stat accent" id="buf-co-occur"><div class="label">Co-occur</div><div class="value">—</div></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="dashboard-grid">
         
         <!-- Column 1: System & Working Memory -->
         <div class="col">
@@ -323,8 +389,85 @@
             </section>
         </div>
         
+    </div><!-- close dashboard-grid -->
     </main>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+    // Neural Activation Heatmap — polls /api/neural_activations every 2s
+    (function() {
+        const canvas = document.getElementById('heatmap-canvas');
+        const ctx = canvas ? canvas.getContext('2d') : null;
+
+        function drawHeatmap(values) {
+            if (!ctx || !values || values.length === 0) return;
+            const w = canvas.width;
+            const h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+            const cellW = w / values.length;
+            for (let i = 0; i < values.length; i++) {
+                const v = Math.max(-1, Math.min(1, values[i]));
+                if (v >= 0) {
+                    const intensity = Math.floor(v * 255);
+                    ctx.fillStyle = `rgb(0, ${intensity}, ${Math.floor(intensity * 0.45)})`;
+                } else {
+                    const intensity = Math.floor(-v * 255);
+                    ctx.fillStyle = `rgb(${intensity}, 0, ${Math.floor(intensity * 0.3)})`;
+                }
+                ctx.fillRect(i * cellW, 0, cellW + 1, h);
+            }
+        }
+
+        function updateRouting(routing) {
+            const container = document.getElementById('routing-container');
+            if (!container || !routing) return;
+            container.innerHTML = '';
+            for (const [name, weight] of Object.entries(routing)) {
+                const bar = document.createElement('div');
+                bar.className = 'route-bar';
+                bar.innerHTML = `<div class="label">${name}</div><div class="route-fill-bg"><div class="route-fill" style="width:${Math.round(weight * 100)}%"></div></div>`;
+                container.appendChild(bar);
+            }
+        }
+
+        function updateSensory(buffers) {
+            if (!buffers) return;
+            const visEl = document.getElementById('vis-fresh');
+            const ageEl = document.getElementById('vis-age');
+            const heardEl = document.getElementById('heard-words');
+
+            if (visEl) visEl.textContent = buffers.visual_fresh ? '✓' : '—';
+            if (ageEl) ageEl.textContent = buffers.visual_age >= 0 ? buffers.visual_age + 's' : '—';
+            if (heardEl) heardEl.textContent = buffers.heard_words && buffers.heard_words.length > 0 ? buffers.heard_words.join(', ') : '—';
+
+            // Update buffer mini-stats
+            const bufVis = document.querySelector('#buf-visual .value');
+            const bufAud = document.querySelector('#buf-auditory .value');
+            const bufCo = document.querySelector('#buf-co-occur .value');
+            if (bufVis) bufVis.textContent = buffers.visual_fresh ? '🟢' : '⚫';
+            if (bufAud) bufAud.textContent = buffers.heard_words && buffers.heard_words.length > 0 ? '🟢' : '⚫';
+            if (bufCo) bufCo.textContent = (buffers.visual_fresh && buffers.heard_words && buffers.heard_words.length > 0) ? '🔥' : '⚫';
+        }
+
+        function fetchActivations() {
+            fetch('/api/neural_activations')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.personality_hidden) drawHeatmap(data.personality_hidden);
+                    if (data.routing) updateRouting(data.routing);
+                    if (data.sensory_buffers) updateSensory(data.sensory_buffers);
+                    const paramsEl = document.getElementById('live-params');
+                    if (paramsEl && data.total_params) {
+                        paramsEl.textContent = (data.total_params / 1000).toFixed(0) + 'K params';
+                    }
+                })
+                .catch(() => {});
+        }
+
+        // Poll every 2 seconds
+        setInterval(fetchActivations, 2000);
+        fetchActivations();
+    })();
+    </script>
 </body>
 </html>

@@ -1,10 +1,11 @@
 import logging
 import threading
 from typing import Dict, Any, List
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, Response
 from flask_cors import CORS
 import numpy as np
 import torch
+import time
 from datetime import datetime
 
 logger = logging.getLogger("genesis.dashboard.server")
@@ -45,12 +46,102 @@ class DashboardServer:
         @self.app.route('/network')
         def network():
             return render_template("network.html")
+
+        @self.app.route('/api/camera')
+        def camera_feed():
+            """MJPEG stream of what Genesis sees through its eyes."""
+            return Response(
+                self._generate_camera_frames(),
+                mimetype='multipart/x-mixed-replace; boundary=frame'
+            )
+
+        @self.app.route('/api/neural_activations')
+        def neural_activations():
+            """Real-time neural layer activations for visualization."""
+            if not _mind_instance:
+                return jsonify({})
+            return jsonify(self._build_neural_activations(_mind_instance))
             
         @self.app.route('/api/state')
         def state():
             if not _mind_instance:
                 return jsonify({"status": "booting..."})
             return jsonify(self._build_state_payload(_mind_instance))
+
+    def _generate_camera_frames(self):
+        """Yield MJPEG frames from the camera."""
+        import time
+        import io
+        while True:
+            try:
+                if _mind_instance and _mind_instance._eyes:
+                    eyes = _mind_instance._eyes
+                    percept = eyes.look()
+                    if percept and percept.frame is not None:
+                        frame = percept.frame
+                        # Convert to JPEG
+                        import cv2
+                        _, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+            except Exception:
+                pass
+            time.sleep(0.5)  # ~2 FPS to match vision thread
+
+    def _build_neural_activations(self, mind) -> dict:
+        """Extract real-time neural activations for heatmap visualization."""
+        activations = {}
+        try:
+            # Personality GRU hidden state
+            if hasattr(mind.subconscious.personality, '_hidden_state') and mind.subconscious.personality._hidden_state is not None:
+                activations['personality_hidden'] = self._tensor_to_list(
+                    mind.subconscious.personality._hidden_state, max_items=128
+                )
+
+            # Limbic system — last reaction values
+            activations['limbic'] = {
+                'dopamine': float(mind.neurochemistry.dopamine.level),
+                'cortisol': float(mind.neurochemistry.cortisol.level),
+                'serotonin': float(mind.neurochemistry.serotonin.level),
+                'oxytocin': float(mind.neurochemistry.oxytocin.level),
+            }
+
+            # Meta-controller routing weights
+            if hasattr(mind.subconscious.meta_controller, '_avg_weights'):
+                activations['routing'] = {
+                    k: round(float(v), 3)
+                    for k, v in mind.subconscious.meta_controller._avg_weights.items()
+                }
+
+            # VQ codebook usage heatmap
+            if hasattr(mind, 'sensorimotor') and mind.sensorimotor:
+                vq = mind.sensorimotor.codebook
+                if hasattr(vq, '_usage'):
+                    usage = vq._usage.tolist()
+                    activations['vq_usage'] = usage[:256]
+
+            # Growth stats
+            activations['total_params'] = mind.subconscious.get_total_params()
+            if hasattr(mind, 'sensorimotor') and mind.sensorimotor:
+                activations['total_params'] += sum(
+                    p.numel() for p in mind.sensorimotor.auditory_cortex.encoder.parameters()
+                ) + sum(
+                    p.numel() for p in mind.sensorimotor.acoustic_brain.model.parameters()
+                )
+
+            # Sensory buffers (co-occurrence state)
+            if hasattr(mind, '_brain') and mind._brain:
+                bd = mind._brain
+                activations['sensory_buffers'] = {
+                    'visual_fresh': bd._recent_visual_embedding is not None,
+                    'visual_age': round(time.time() - bd._recent_visual_time, 1) if bd._recent_visual_time > 0 else -1,
+                    'heard_words': bd._recent_heard_words[:5],
+                    'heard_age': round(time.time() - bd._recent_heard_time, 1) if bd._recent_heard_time > 0 else -1,
+                }
+
+        except Exception as e:
+            activations['error'] = str(e)
+        return activations
 
     def _tensor_to_list(self, tensor: torch.Tensor, max_items: int = 50) -> List[float]:
         """Safely convert a tensor to a flat list for visualization."""
