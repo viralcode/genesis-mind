@@ -1029,6 +1029,7 @@ class GenesisMind:
         self._running = True
 
         def signal_handler(sig, frame):
+            signal.signal(signal.SIGINT, signal.SIG_IGN)  # Ignore subsequent Ctrl+C
             print("\n")
             self.shutdown()
             sys.exit(0)
@@ -1314,6 +1315,7 @@ class GenesisMind:
         self._running = True
 
         def signal_handler(sig, frame):
+            signal.signal(signal.SIGINT, signal.SIG_IGN)  # Ignore subsequent Ctrl+C
             print("\n")
             self.shutdown()
             sys.exit(0)

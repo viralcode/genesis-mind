@@ -621,7 +621,7 @@ class DashboardServer:
                         
                         weight_stats[name] = {
                             "mean": round(float(data.mean()), 6),
-                            "std": round(float(data.std()), 6),
+                            "std": round(float(data.std()), 6) if data.numel() > 1 else 0.0,
                             "min": round(float(data.min()), 6),
                             "max": round(float(data.max()), 6),
                             "norm": round(float(data.norm()), 4),

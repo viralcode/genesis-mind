@@ -371,17 +371,30 @@ class AcousticWordMemory:
         try:
             with open(self.storage_path, 'r') as f:
                 data = json.load(f)
+            purged_count = 0
             for word, exemplar_list in data.items():
-                self._exemplars[word] = [
-                    AcousticExemplar(
+                loaded = []
+                for ex in exemplar_list:
+                    tokens = ex["vq_tokens"]
+                    # Purge corrupt exemplars (all-same-token from untrained codebook)
+                    if not self._has_diversity(tokens, min_unique=3):
+                        purged_count += 1
+                        continue
+                    loaded.append(AcousticExemplar(
                         word=word,
-                        vq_tokens=ex["vq_tokens"],
+                        vq_tokens=tokens,
                         embedding=ex.get("embedding"),
                         timestamp=ex.get("timestamp", ""),
                         confidence=ex.get("confidence", 1.0),
-                    )
-                    for ex in exemplar_list
-                ]
+                    ))
+                if loaded:
+                    self._exemplars[word] = loaded
+            if purged_count > 0:
+                logger.warning(
+                    "Purged %d corrupt exemplars (all-same-token from untrained codebook)",
+                    purged_count,
+                )
+                self._save()  # persist the cleanup
         except Exception as e:
             logger.warning("Could not load acoustic word memory: %s", e)
 

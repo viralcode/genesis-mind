@@ -1,420 +1,322 @@
-/* ═══ Mind Page Styles ═══ */
+/*
+  Genesis Mind V7 — Cinematic Soul Orb UI
+*/
 
-.mind-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 80px 24px 40px;
-}
-
-.mind-header {
-    text-align: center;
-    margin-bottom: 2rem;
-}
-
-.mind-header h1 {
-    font-size: 2rem;
-    font-weight: 700;
-    background: linear-gradient(135deg, #a78bfa, #60a5fa, #34d399);
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin-bottom: 0.5rem;
-}
-
-.mind-meta {
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.phase-badge {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    color: white;
-    padding: 4px 14px;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    font-weight: 600;
-}
-
-.age-label, .concept-count {
-    color: rgba(255,255,255,0.5);
-    font-size: 0.85rem;
-}
-
-/* ═══ Sections ═══ */
-
-.mind-section {
-    margin-bottom: 2rem;
-}
-
-.mind-section h2 {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: rgba(255,255,255,0.85);
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.4rem;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-}
-
-/* ═══ Glass Cards / Panels ═══ */
-
-.glass-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 12px;
-    padding: 1rem 1.25rem;
-    backdrop-filter: blur(10px);
-}
-
-.glass-card h3 {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: rgba(255,255,255,0.6);
-    margin-bottom: 0.75rem;
-}
-
-.dual-panel {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-}
-
-@media (max-width: 768px) {
-    .dual-panel {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* ═══ Neurochemistry + Emotion Bars ═══ */
-
-.chem-bars, .emotion-bars {
+body.mind-projection-mode {
+    background-color: #050508;
+    color: #e2e8f0;
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    height: 100vh;
 }
 
-.bar-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.bar-label {
-    width: 90px;
-    font-size: 0.8rem;
-    color: rgba(255,255,255,0.6);
-    text-transform: capitalize;
-    flex-shrink: 0;
-}
-
-.bar-track {
-    flex: 1;
-    height: 8px;
-    background: rgba(255,255,255,0.05);
-    border-radius: 4px;
-    overflow: hidden;
-    position: relative;
-}
-
-.bar-fill {
-    height: 100%;
-    border-radius: 4px;
-    transition: width 0.6s ease;
-}
-
-.bar-value {
-    width: 40px;
-    text-align: right;
-    font-size: 0.75rem;
-    color: rgba(255,255,255,0.4);
-    font-family: 'SF Mono', 'Fira Code', monospace;
-}
-
-/* Chemical-specific colors */
-.chem-dopamine .bar-fill { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
-.chem-cortisol .bar-fill { background: linear-gradient(90deg, #ef4444, #f87171); }
-.chem-serotonin .bar-fill { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
-.chem-oxytocin .bar-fill { background: linear-gradient(90deg, #ec4899, #f472b6); }
-
-/* ═══ Drives Grid ═══ */
-
-.drives-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 0.75rem;
-}
-
-.drive-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 10px;
-    padding: 0.75rem 1rem;
-    transition: border-color 0.3s;
-}
-
-.drive-card.unsatisfied {
-    border-color: rgba(251, 191, 36, 0.3);
-    background: rgba(251, 191, 36, 0.04);
-}
-
-.drive-card.satisfied {
-    border-color: rgba(52, 211, 153, 0.2);
-}
-
-.drive-name {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: rgba(255,255,255,0.8);
-    margin-bottom: 0.4rem;
-    text-transform: capitalize;
-}
-
-.drive-bar {
-    height: 6px;
-    background: rgba(255,255,255,0.05);
-    border-radius: 3px;
-    overflow: hidden;
-}
-
-.drive-fill {
-    height: 100%;
-    border-radius: 3px;
-    transition: width 0.6s ease;
-}
-
-.drive-card.unsatisfied .drive-fill {
-    background: linear-gradient(90deg, #fbbf24, #f59e0b);
-}
-
-.drive-card.satisfied .drive-fill {
-    background: linear-gradient(90deg, #34d399, #10b981);
-}
-
-/* ═══ Working Memory ═══ */
-
-.wm-items {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-.wm-item {
-    background: rgba(99, 102, 241, 0.1);
-    border: 1px solid rgba(99, 102, 241, 0.2);
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 0.8rem;
-    color: rgba(255,255,255,0.8);
-    position: relative;
-}
-
-.wm-salience {
+/* ═══ Background Canvas ═══ */
+.fullscreen-canvas {
     position: absolute;
-    top: -6px;
-    right: -4px;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 1; /* Behind everything */
+    opacity: 0.3; /* Faint constellation effect */
+    pointer-events: none; /* Let clicks pass through */
+}
+
+/* ═══ App Header Override ═══ */
+.glass-header {
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* ═══ Main Projection Space ═══ */
+.projection-main {
+    flex-grow: 1;
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 3rem;
+    z-index: 5; /* Above canvas */
+}
+
+/* ═══ HUD Panels ═══ */
+.hud-panel {
+    width: 320px;
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    background: rgba(10, 10, 15, 0.5);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.left-hud {
+    border-left: 2px solid rgba(124, 77, 255, 0.3);
+}
+
+.right-hud {
+    border-right: 2px solid rgba(0, 230, 118, 0.3);
+    overflow-y: auto;
+}
+
+.hud-header {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    letter-spacing: 0.15em;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+/* ═══ Inner Monologue Stream ═══ */
+.stream-container {
+    flex-grow: 1;
+    overflow-y: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    /* Fade out top for holographic effect */
+    mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 100%);
+    position: relative;
+    justify-content: flex-end; /* Feed from bottom up */
+}
+
+.stream-item {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    padding: 0.6rem;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.02);
+    border-left: 2px solid var(--accent);
+    color: #e2e8f0;
+    opacity: 0;
+    transform: translateY(10px);
+    animation: slideUpFade 0.4s forwards;
+    box-shadow: 0 0 10px rgba(124, 77, 255, 0.1);
+}
+
+.stream-item.episode {
+    border-left-color: #00e676;
+    background: rgba(0, 230, 118, 0.03);
+    color: #a7f3d0;
+    box-shadow: 0 0 10px rgba(0, 230, 118, 0.1);
+}
+
+.stream-time {
+    display: block;
     font-size: 0.55rem;
+    color: var(--text-muted);
+    margin-bottom: 0.2rem;
+}
+
+@keyframes slideUpFade {
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══ Central Emergent Soul Orb ═══ */
+.entity-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none; /* purely visual */
+    margin-top: -3rem;
+}
+
+.orb-container {
+    position: relative;
+    width: 400px;
+    height: 400px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
-    color: white;
+    filter: url('#gooey');
 }
 
-.empty-state {
-    color: rgba(255,255,255,0.3);
-    font-size: 0.85rem;
-    font-style: italic;
-    padding: 1rem;
-}
-
-/* ═══ Concept Cloud ═══ */
-
-.concept-cloud {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 0.5rem 0;
-}
-
-.concept-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 5px 10px;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    border: 1px solid rgba(255,255,255,0.08);
-    transition: all 0.2s;
-    cursor: default;
-}
-
-.concept-tag:hover {
-    border-color: rgba(255,255,255,0.2);
-    background: rgba(255,255,255,0.05);
-}
-
-.concept-tag .strength-dot {
-    width: 6px;
-    height: 6px;
+/* Drive Rings */
+.drive-ring {
+    position: absolute;
     border-radius: 50%;
-    flex-shrink: 0;
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    transition: all 1s ease;
 }
 
-.concept-tag.visual { background: rgba(239, 68, 68, 0.08); color: rgba(252, 165, 165, 0.9); }
-.concept-tag.auditory { background: rgba(34, 197, 94, 0.08); color: rgba(134, 239, 172, 0.9); }
-.concept-tag.taught { background: rgba(59, 130, 246, 0.08); color: rgba(147, 197, 253, 0.9); }
-.concept-tag.default { background: rgba(148, 163, 184, 0.06); color: rgba(203, 213, 225, 0.8); }
+.ring-1 { width: 220px; height: 220px; animation: spin 20s linear infinite; border-color: rgba(79, 195, 247, 0.3); } /* Sleep */
+.ring-2 { width: 260px; height: 260px; animation: spinReverse 25s linear infinite; border-color: rgba(255, 213, 79, 0.3); } /* Comfort */
+.ring-3 { width: 300px; height: 300px; animation: spin 15s linear infinite; border-color: rgba(0, 230, 118, 0.3); } /* Social */
+.ring-4 { width: 340px; height: 340px; animation: spinReverse 30s linear infinite; border-color: rgba(124, 77, 255, 0.3); } /* Curiosity */
 
-/* ═══ Vocabulary ═══ */
+@keyframes spin { 100% { transform: rotate(360deg); } }
+@keyframes spinReverse { 100% { transform: rotate(-360deg); } }
 
-.vocab-list {
+/* The Core */
+.soul-orb {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #ffffff, #81d4fa, var(--accent) 70%, #1a1a2e);
+    box-shadow: 
+        0 0 40px rgba(124, 77, 255, 0.4),
+        inset -10px -10px 20px rgba(0, 0, 0, 0.5);
     display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.vocab-word {
-    display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 4px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    justify-content: center;
+    animation: orbBreathe 4s ease-in-out infinite alternate;
+    transition: all 1s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 2;
 }
 
-.vocab-word .word { font-size: 0.85rem; color: rgba(255,255,255,0.8); }
-.vocab-word .count { font-size: 0.75rem; color: rgba(255,255,255,0.4); }
+/* The Core's internal energy */
+.orb-core {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0 30px #fff;
+    filter: blur(4px);
+    animation: corePulse 2s ease-in-out infinite alternate;
+}
 
-.vocab-stats {
+/* The ambient outer glow */
+.orb-glow {
+    position: absolute;
+    width: 200%;
+    height: 200%;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--accent) 0%, transparent 60%);
+    opacity: 0.3;
+    filter: blur(20px);
+    z-index: -1;
+    transition: all 1s ease;
+}
+
+@keyframes orbBreathe {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.05); }
+}
+
+@keyframes corePulse {
+    0% { transform: scale(0.9); opacity: 0.8; }
+    100% { transform: scale(1.1); opacity: 1; }
+}
+
+.orb-labels {
+    margin-top: 2rem;
+    text-align: center;
+}
+
+.orb-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-main);
+}
+
+.orb-subtitle {
     margin-top: 0.5rem;
-    font-size: 0.75rem;
-    color: rgba(255,255,255,0.4);
+    font-size: 0.8rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: #81d4fa;
+    text-shadow: 0 0 5px rgba(129, 212, 250, 0.5);
 }
 
-/* ═══ Grammar ═══ */
+/* ═══ Right HUD: Telemetry ═══ */
 
-.grammar-info .stat-row {
+.telemetry-block {
+    margin-bottom: 2rem;
+}
+
+.telemetry-row {
     display: flex;
     justify-content: space-between;
-    padding: 4px 0;
-    font-size: 0.8rem;
-    color: rgba(255,255,255,0.6);
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-}
-
-.grammar-info .stat-row .val {
-    color: rgba(255,255,255,0.9);
-    font-family: 'SF Mono', 'Fira Code', monospace;
-}
-
-.top-words {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 0.5rem;
-}
-
-.top-word {
-    background: rgba(52, 211, 153, 0.08);
-    border: 1px solid rgba(52, 211, 153, 0.15);
-    border-radius: 4px;
-    padding: 2px 8px;
     font-size: 0.75rem;
-    color: rgba(167, 243, 208, 0.9);
+    padding: 0.4rem 0;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
 }
 
-/* ═══ Bindings ═══ */
-
-.bindings-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 0.75rem;
+.telemetry-row span:first-child {
+    color: var(--text-muted);
 }
 
-.binding-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(168, 85, 247, 0.15);
-    border-radius: 8px;
-    padding: 0.75rem;
+.telemetry-row span:last-child {
+    color: #81d4fa;
 }
 
-.binding-arrow {
-    text-align: center;
-    color: rgba(168, 85, 247, 0.5);
-    font-size: 0.7rem;
-    margin: 4px 0;
-}
-
-.binding-label {
-    font-size: 0.8rem;
-    color: rgba(255,255,255,0.7);
-}
-
-/* ═══ Episodes ═══ */
-
-.episodes-list {
+.bar-system {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    max-height: 300px;
-    overflow-y: auto;
+    gap: 0.8rem;
+    margin-top: 1rem;
 }
 
-.episode-card {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.05);
-    border-radius: 8px;
-    padding: 8px 12px;
+.sys-bar-row {
     display: flex;
-    gap: 0.75rem;
-    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.3rem;
 }
 
-.episode-emoji {
-    font-size: 1.1rem;
-    flex-shrink: 0;
+.sys-bar-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.65rem;
+    color: var(--text-main);
+    text-transform: capitalize;
 }
 
-.episode-body {
-    flex: 1;
-    min-width: 0;
+.sys-bar-val {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-muted);
 }
 
-.episode-summary {
-    font-size: 0.8rem;
-    color: rgba(255,255,255,0.7);
+.sys-bar-track {
+    width: 100%;
+    height: 4px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 2px;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
-.episode-time {
-    font-size: 0.7rem;
-    color: rgba(255,255,255,0.3);
+.sys-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.5s ease;
+    box-shadow: 0 0 5px var(--accent);
 }
 
-/* ═══ Interaction Log ═══ */
+/* ═══ Scrollbars ═══ */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
-.interaction-log {
-    max-height: 250px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 0.75rem;
-}
-
-.log-entry {
-    color: rgba(255,255,255,0.5);
-    padding: 2px 6px;
-    border-radius: 3px;
-}
-
-.log-entry:hover {
-    background: rgba(255,255,255,0.03);
+/* ═══ Responsive ═══ */
+@media (max-width: 1200px) {
+    .projection-main {
+        flex-direction: column;
+        justify-content: flex-start;
+        padding: 1rem;
+        gap: 3rem;
+        overflow-y: auto;
+    }
+    .hud-panel {
+        width: 100%;
+        height: auto;
+        min-height: 300px;
+    }
+    .entity-center {
+        margin-top: 1rem;
+        order: -1; /* Orb on top on mobile */
+    }
 }

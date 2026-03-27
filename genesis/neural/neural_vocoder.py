@@ -276,7 +276,14 @@ class NeuralVocoder:
         """
         try:
             import sounddevice as sd
+            # Stop any currently-playing stream first (prevents AUHAL -50 error)
+            try:
+                sd.stop()
+            except Exception:
+                pass
+            
             # Amplify — untrained vocoder produces very quiet output
+            waveform = np.ascontiguousarray(waveform, dtype=np.float32)
             peak = np.abs(waveform).max()
             if peak > 1e-6:
                 # Normalize to 80% of max volume
@@ -285,15 +292,18 @@ class NeuralVocoder:
                 logger.debug("Waveform is silent (peak=%.2e), skipping playback", peak)
                 return
             
+            # Clamp to [-1, 1] to avoid audio driver errors
+            waveform = np.clip(waveform, -1.0, 1.0)
+            
             logger.debug(
                 "Playing %d samples (%.2fs, peak=%.3f)",
                 len(waveform), len(waveform) / self.sample_rate, np.abs(waveform).max()
             )
-            sd.play(waveform.astype(np.float32), self.sample_rate, blocking=False)
+            sd.play(waveform, self.sample_rate, blocking=False)
         except ImportError:
             logger.warning("sounddevice not available — cannot play audio")
         except Exception as e:
-            logger.error("Audio playback failed: %s", e)
+            logger.debug("Audio playback issue: %s", e)
 
     def get_params(self) -> int:
         return sum(p.numel() for p in self.mel_reconstructor.parameters())

@@ -137,8 +137,10 @@ class PersonalityNetwork:
         self.optimizer = optim.Adam(self.network.parameters(), lr=lr)
         self.criterion = nn.CosineEmbeddingLoss()
 
-        # The persistent hidden state — the stream of consciousness
-        self._hidden_state = None
+        # The persistent hidden state — the stream of consciousness (initialized to zeros)
+        self._hidden_state = torch.zeros(
+            self.network.num_layers, 1, self.network.hidden_dim, device=DEVICE
+        )
 
         # Experience buffer for training
         self._experience_buffer: deque = deque(maxlen=100)

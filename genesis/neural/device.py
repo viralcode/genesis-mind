@@ -16,6 +16,10 @@ import logging
 from contextlib import nullcontext
 
 import torch
+import torch._inductor.config
+
+# Suppress annoying macOS Apple Silicon SM warnings for inductor
+torch._inductor.config.max_autotune_gemm = False
 
 logger = logging.getLogger("genesis.neural.device")
 

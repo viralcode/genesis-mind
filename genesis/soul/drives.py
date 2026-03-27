@@ -77,13 +77,13 @@ class DriveSystem:
         # Tier 1: Survival
         self.sleep_need = Drive(
             name="Sleep", tier=1,
-            rise_rate=0.008, satisfaction_drop=0.7,
+            rise_rate=0.00008, satisfaction_drop=0.7,
             description_low="I feel rested",
             description_high="I am exhausted and need to sleep",
         )
         self.comfort = Drive(
             name="Comfort", tier=1,
-            rise_rate=0.006, satisfaction_drop=0.4,
+            rise_rate=0.00006, satisfaction_drop=0.4,
             description_low="I feel comfortable",
             description_high="I feel overwhelmed and overstimulated",
         )
@@ -91,13 +91,13 @@ class DriveSystem:
         # Tier 2: Social
         self.social_need = Drive(
             name="Social", tier=2,
-            rise_rate=0.025, satisfaction_drop=0.20,
+            rise_rate=0.00025, satisfaction_drop=0.20,
             description_low="I feel connected",
             description_high="I crave interaction and connection",
         )
         self.belonging = Drive(
             name="Belonging", tier=2,
-            rise_rate=0.012, satisfaction_drop=0.15,
+            rise_rate=0.00012, satisfaction_drop=0.15,
             description_low="I feel accepted",
             description_high="I need to feel accepted and valued",
         )
@@ -105,19 +105,19 @@ class DriveSystem:
         # Tier 3: Cognitive
         self.curiosity_hunger = Drive(
             name="Curiosity", tier=3,
-            rise_rate=0.020, satisfaction_drop=0.15,
+            rise_rate=0.00020, satisfaction_drop=0.15,
             description_low="I feel content with what I know",
             description_high="I desperately want to learn something new",
         )
         self.novelty_drive = Drive(
             name="Novelty", tier=3,
-            rise_rate=0.018, satisfaction_drop=0.12,
+            rise_rate=0.00018, satisfaction_drop=0.12,
             description_low="I feel stimulated",
             description_high="I feel bored and crave new experiences",
         )
         self.mastery = Drive(
             name="Mastery", tier=3,
-            rise_rate=0.015, satisfaction_drop=0.18,
+            rise_rate=0.00015, satisfaction_drop=0.18,
             description_low="I feel competent",
             description_high="I want to get better at what I know",
         )
@@ -125,7 +125,7 @@ class DriveSystem:
         # Tier 4: Self
         self.autonomy = Drive(
             name="Autonomy", tier=4,
-            rise_rate=0.010, satisfaction_drop=0.10,
+            rise_rate=0.00010, satisfaction_drop=0.10,
             description_low="I feel free to explore",
             description_high="I want to decide for myself what to do",
         )
@@ -185,16 +185,16 @@ class DriveSystem:
         
         # Motion detection → alertness, mild comfort reduction
         if motion > 0.3:
-            self.comfort.frustrate(motion * 0.04)
-            self.sleep_need.satisfy(motion * 0.02)  # Motion keeps you awake
+            self.comfort.frustrate(motion * 0.004)
+            self.sleep_need.satisfy(motion * 0.002)  # Motion keeps you awake
         
         # Visual novelty → stimulates curiosity
         if novelty > 0.4:
-            self.curiosity_hunger.frustrate(novelty * 0.06)  # Want to know more
-            self.novelty_drive.satisfy(novelty * 0.03)  # Got some novelty
+            self.curiosity_hunger.frustrate(novelty * 0.006)  # Want to know more
+            self.novelty_drive.satisfy(novelty * 0.003)  # Got some novelty
         elif novelty < 0.1:
             # Nothing new = boring
-            self.novelty_drive.frustrate(0.02)
+            self.novelty_drive.frustrate(0.002)
         
         # Scene complexity
         if complexity > 0.5:

@@ -942,7 +942,7 @@ class BrainDaemon:
             all_concepts = [c.word for c in mind.semantic_memory.get_all_concepts()]
 
             def get_emb(word):
-                c = mind.semantic_memory.recall(word)
+                c = mind.semantic_memory.recall_concept(word)
                 if c and c.text_embedding:
                     return np.array(c.text_embedding)
                 return None
@@ -966,7 +966,7 @@ class BrainDaemon:
         consolidation = mind.working_memory.get_consolidation_candidates()
         for item in consolidation[:2]:
             mind.working_memory.rehearse(item.key)
-            concept = mind.semantic_memory.recall(item.key)
+            concept = mind.semantic_memory.recall_concept(item.key)
             if concept:
                 concept.reinforce(context="episodic_replay")
                 mind.metacognition.on_recall_attempt(item.key, success=True)

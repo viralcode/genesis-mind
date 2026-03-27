@@ -3,103 +3,106 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Genesis Mind — What's Inside</title>
-    <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="stylesheet" href="/static/css/mind.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Genesis — Inner Mind Projection</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mind.css') }}">
 </head>
-<body>
-    <!-- Navigation -->
-    <nav class="top-nav">
-        <a href="/" class="nav-brand">◈ Genesis</a>
-        <div class="nav-links">
-            <a href="/">Dashboard</a>
-            <a href="/network">Neural</a>
-            <a href="/explorer">Explorer</a>
-            <a href="/mind" class="active">Mind</a>
+<body class="mind-projection-mode">
+    <!-- Semantic Background Canvas -->
+    <div id="semantic-universe" class="fullscreen-canvas"></div>
+    
+    <!-- Top App Navigation -->
+    <header class="app-header glass-header">
+        <div class="logo">
+            <div class="pulse-ring"></div>
+            <h1>Genesis Mind <span>V7</span></h1>
+            <span class="badge" id="phase-badge">Phase ?</span>
         </div>
-    </nav>
+        <nav class="top-nav">
+            <a href="/" class="nav-link">Dashboard</a>
+            <a href="/network" class="nav-link">Neural Network</a>
+            <a href="/explorer" class="nav-link">Explorer</a>
+            <a href="/mind" class="nav-link active">Mind</a>
+        </nav>
+        <div class="status-indicator">
+            <span class="dot live"></span>
+            <span id="connection-status">Entity Sync Active</span>
+        </div>
+    </header>
 
-    <div class="mind-container">
-        <!-- Header -->
-        <div class="mind-header">
-            <h1>🧠 What's Inside the Mind</h1>
-            <div class="mind-meta" id="mindMeta">
-                <span class="phase-badge" id="phaseBadge">Phase ?</span>
-                <span class="age-label" id="ageLabel">—</span>
-                <span class="concept-count" id="conceptCount">— concepts</span>
+    <main class="projection-main">
+        
+        <!-- Left HUD: Stream of Consciousness -->
+        <div class="hud-panel left-hud">
+            <div class="hud-header">INNER MONOLOGUE</div>
+            <div class="stream-container" id="monologue-stream">
+                <!-- Chat log flowing up -->
             </div>
         </div>
 
-        <!-- Emotional Landscape -->
-        <section class="mind-section" id="emotionalSection">
-            <h2>💫 Emotional Landscape</h2>
-            <div class="dual-panel">
-                <div class="panel glass-card">
-                    <h3>Neurochemistry</h3>
-                    <div id="neurochemBars" class="chem-bars"></div>
-                </div>
-                <div class="panel glass-card">
-                    <h3>Emotional Dimensions</h3>
-                    <div id="emotionBars" class="emotion-bars"></div>
-                </div>
-            </div>
-        </section>
+        <!-- CENTER: The Emergent Soul Orb -->
+        <div class="entity-center">
+            
+            <div class="orb-container">
+                <!-- SVG Filter for Gooey Fusion (Optional) -->
+                <svg width="0" height="0">
+                    <filter id="gooey">
+                        <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
+                        <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="gooey" />
+                        <feBlend in="SourceGraphic" in2="gooey" />
+                    </filter>
+                </svg>
 
-        <!-- Drives -->
-        <section class="mind-section" id="drivesSection">
-            <h2>🎯 What Genesis Wants</h2>
-            <div class="drives-grid" id="drivesGrid"></div>
-        </section>
+                <!-- Drive Tension Rings -->
+                <div class="drive-ring ring-1" id="ring-sleep" title="Sleep Need"></div>
+                <div class="drive-ring ring-2" id="ring-comfort" title="Comfort Need"></div>
+                <div class="drive-ring ring-3" id="ring-social" title="Social Need"></div>
+                <div class="drive-ring ring-4" id="ring-curiosity" title="Curiosity Need"></div>
 
-        <!-- Working Memory -->
-        <section class="mind-section" id="wmSection">
-            <h2>💭 Current Focus (Working Memory)</h2>
-            <div class="wm-items" id="wmItems">
-                <div class="empty-state">Nothing in working memory</div>
-            </div>
-        </section>
-
-        <!-- Concepts -->
-        <section class="mind-section" id="conceptsSection">
-            <h2>🌐 Concepts Learned</h2>
-            <div class="concept-cloud" id="conceptCloud"></div>
-        </section>
-
-        <!-- Vocabulary & Grammar -->
-        <section class="mind-section" id="languageSection">
-            <h2>🗣 Language Acquisition</h2>
-            <div class="dual-panel">
-                <div class="panel glass-card">
-                    <h3>Acoustic Vocabulary</h3>
-                    <div id="vocabPanel" class="vocab-list"></div>
-                </div>
-                <div class="panel glass-card">
-                    <h3>Grammar Patterns</h3>
-                    <div id="grammarPanel" class="grammar-info"></div>
+                <!-- The Actual Soul Core -->
+                <div class="soul-orb" id="soul-orb">
+                    <div class="orb-glow" id="orb-glow"></div>
+                    <div class="orb-core"></div>
                 </div>
             </div>
-        </section>
 
-        <!-- Cross-Modal Bindings -->
-        <section class="mind-section" id="bindingsSection">
-            <h2>🔗 Cross-Modal Bindings</h2>
-            <div class="bindings-list" id="bindingsList"></div>
-        </section>
+            <div class="orb-labels">
+                <div class="orb-title">Consciousness Projection</div>
+                <div class="orb-subtitle" id="orb-status">Synthesizing Experiences...</div>
+            </div>
+        </div>
 
-        <!-- Episodes -->
-        <section class="mind-section" id="episodesSection">
-            <h2>📖 Recent Memories</h2>
-            <div class="episodes-list" id="episodesList"></div>
-        </section>
+        <!-- Right HUD: Neural Telemetry -->
+        <div class="hud-panel right-hud">
+            
+            <div class="telemetry-block">
+                <div class="hud-header">GROWTH METRICS</div>
+                <div class="telemetry-row"><span>Age</span> <span id="tel-age" class="mono">0.0h</span></div>
+                <div class="telemetry-row"><span>Concepts</span> <span id="tel-concepts" class="mono">0</span></div>
+                <div class="telemetry-row"><span>Vocab Size</span> <span id="tel-vocab" class="mono">0</span></div>
+                <div class="telemetry-row"><span>Episodes</span> <span id="tel-episodes" class="mono">0</span></div>
+            </div>
 
-        <!-- Interaction Log -->
-        <section class="mind-section" id="logSection">
-            <h2>💬 Recent Activity</h2>
-            <div class="interaction-log" id="interactionLog"></div>
-        </section>
-    </div>
+            <div class="telemetry-block">
+                <div class="hud-header">NEUROCHEMICAL BALANCE</div>
+                <div class="bar-system" id="chem-system">
+                    <!-- Dynamic Bars -->
+                </div>
+            </div>
 
-    <script src="/static/js/mind.js"></script>
+            <div class="telemetry-block">
+                <div class="hud-header">AFFECTIONAL STATE (EMOTION)</div>
+                <div class="bar-system" id="emotion-system">
+                    <!-- Dynamic Bars -->
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <script src="{{ url_for('static', filename='js/mind.js') }}"></script>
 </body>
 </html>

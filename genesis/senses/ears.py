@@ -78,8 +78,11 @@ class Ears:
         self._auditory_cortex = cortex
 
     def _compute_energy(self, audio: np.ndarray) -> float:
-        """Compute the RMS energy of an audio chunk."""
-        return float(np.sqrt(np.mean(audio.astype(np.float32) ** 2)))
+        """Compute the RMS energy of an audio chunk (overflow-safe)."""
+        samples = audio.astype(np.float64)
+        samples = np.clip(samples, -1e9, 1e9)  # guard against corrupt values
+        rms = np.sqrt(np.mean(samples ** 2))
+        return float(rms) if np.isfinite(rms) else 0.0
 
     def _compute_mel_spectrogram(self, audio: np.ndarray) -> np.ndarray:
         """
