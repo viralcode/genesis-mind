@@ -372,6 +372,8 @@ class GenesisMind:
             text_embedding=audio_tensor,
             context=context_vec,
             train=True,
+            emotional_intensity=self.emotional_state.get_emotional_intensity(),
+            drive_hunger=self.drives.get_dominant_drive()[1],
         )
 
         # Store the raw experience in the short-term Replay Buffer for offline consolidation
@@ -1300,7 +1302,18 @@ if __name__ == "__main__":
     config = GenesisConfig(creator_name="Jijo John")
     mind = GenesisMind(config=config)
 
-    if "--consciousness" in sys.argv:
+    if "--bootstrap" in sys.argv:
+        # ═══ Bootstrap Self-Play Mode ═══
+        # Accelerated offline training — skips the newborn noise phase
+        hours = 1.0
+        for i, arg in enumerate(sys.argv):
+            if arg == "--hours" and i + 1 < len(sys.argv):
+                hours = float(sys.argv[i + 1])
+        
+        from genesis.growth.bootstrap import BootstrapEngine
+        bootstrap = BootstrapEngine(mind, hours=hours)
+        bootstrap.run()
+    elif "--consciousness" in sys.argv:
         mind.run_consciousness()
     else:
         # Start Web Dashboard

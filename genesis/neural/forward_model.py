@@ -24,6 +24,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+from genesis.neural.device import DEVICE, to_device
+
 logger = logging.getLogger("genesis.neural.forward_model")
 
 
@@ -62,7 +64,7 @@ class WorldModel:
         self.concept_dim = concept_dim
         self.hidden_dim = hidden_dim
 
-        self.network = ForwardPredictor(concept_dim, hidden_dim)
+        self.network = to_device(ForwardPredictor(concept_dim, hidden_dim))
         self.optimizer = optim.Adam(self.network.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
 
@@ -73,7 +75,7 @@ class WorldModel:
         self._total_loss = 0.0
 
         total = sum(p.numel() for p in self.network.parameters())
-        logger.info("Forward World Model initialized (%d parameters)", total)
+        logger.info("Forward World Model initialized (%d parameters, device=%s)", total, DEVICE)
 
     def predict_and_learn(self, current_concept: np.ndarray, current_state: np.ndarray) -> float:
         """
@@ -81,8 +83,8 @@ class WorldModel:
         have predicted a moment ago, computes loss, and then makes a NEW prediction
         for the future.
         """
-        curr_c_tensor = torch.from_numpy(current_concept).float().unsqueeze(0)
-        curr_s_tensor = torch.from_numpy(current_state).float().unsqueeze(0)
+        curr_c_tensor = torch.from_numpy(current_concept).float().unsqueeze(0).to(DEVICE)
+        curr_s_tensor = torch.from_numpy(current_state).float().unsqueeze(0).to(DEVICE)
 
         surprise = 0.0
 

@@ -27,6 +27,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+from genesis.neural.device import DEVICE, to_device
+
 logger = logging.getLogger("genesis.neural.binding_network")
 
 
@@ -88,7 +90,7 @@ class BindingNetwork:
         self.auditory_dim = auditory_dim
         self.output_dim = output_dim
 
-        self.network = CrossModalBinder(visual_dim, auditory_dim, output_dim)
+        self.network = to_device(CrossModalBinder(visual_dim, auditory_dim, output_dim))
         self.optimizer = optim.Adam(self.network.parameters(), lr=lr)
 
         self._bindings_created = 0
@@ -96,7 +98,7 @@ class BindingNetwork:
         self._total_loss = 0.0
 
         total = sum(p.numel() for p in self.network.parameters())
-        logger.info("Binding network initialized (%d parameters)", total)
+        logger.info("Binding network initialized (%d parameters, device=%s)", total, DEVICE)
 
     def bind(self, visual_features: Optional[np.ndarray] = None,
              auditory_features: Optional[np.ndarray] = None) -> np.ndarray:
@@ -112,7 +114,7 @@ class BindingNetwork:
             unified = self.network(v_tensor, a_tensor)
 
         self._bindings_created += 1
-        return unified.squeeze(0).numpy()
+        return unified.squeeze(0).cpu().numpy()
 
     def train_binding_batch(self, visual_features_list: list, auditory_features_list: list) -> float:
         """
@@ -176,8 +178,8 @@ class BindingNetwork:
             if len(a) < self.auditory_dim:
                 a = np.pad(a, (0, self.auditory_dim - len(a)))
 
-        return (torch.from_numpy(v).unsqueeze(0),
-                torch.from_numpy(a).unsqueeze(0))
+        return (torch.from_numpy(v).unsqueeze(0).to(DEVICE),
+                torch.from_numpy(a).unsqueeze(0).to(DEVICE))
 
     def save_weights(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)

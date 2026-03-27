@@ -3,25 +3,26 @@
 # =============================================================================
 # All models are from scratch. No CLIP, no Whisper, no SBERT, no Ollama.
 # No CUDA, no GPU drivers, no cloud APIs, no internet required.
+# Pinned to exact versions for reproducibility.
 # =============================================================================
 
 # --- Core Neural Framework ---
-torch>=2.1.0                   # Backend for all from-scratch neural networks
-torchaudio>=2.1.0              # Mel spectrogram computation (pure signal processing)
-numpy>=1.24.0                  # Numerical backbone for all sensory data
+torch==2.11.0                   # Backend for all from-scratch neural networks
+torchaudio==2.11.0              # Mel spectrogram computation (pure signal processing)
+numpy==2.4.3                    # Numerical backbone for all sensory data
 
 # --- Perception (Senses) ---
-opencv-python>=4.8.0           # Eyes: webcam capture and image processing
-sounddevice>=0.4.6             # Ears: microphone audio capture
-Pillow>=10.0.0                 # Image manipulation and format conversion
+opencv-python==4.13.0.92        # Eyes: webcam capture and image processing
+sounddevice==0.5.5              # Ears: microphone audio capture
+pillow==12.1.1                  # Image manipulation and format conversion
 
 # --- Memory (Vector Database) ---
-chromadb>=0.4.0                # Local vector database, no server needed
+chromadb==1.5.5                 # Local vector database, no server needed
 
 # --- Voice ---
 # Neural vocoder only — no pretrained TTS (pyttsx3 removed)
 
 # --- Utilities ---
-scipy>=1.11.0                  # Signal processing for audio
-flask==3.1.0
-flask-cors==5.0.0
+scipy==1.17.1                   # Signal processing for audio
+Flask==3.1.3                    # Dashboard web server
+flask-cors==6.0.2               # CORS support for dashboard

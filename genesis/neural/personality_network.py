@@ -39,6 +39,8 @@ import torch.nn as nn
 import torch.optim as optim
 from collections import deque
 
+from genesis.neural.device import DEVICE, to_device
+
 logger = logging.getLogger("genesis.neural.personality_network")
 
 
@@ -94,7 +96,7 @@ class PersonalityGRU(nn.Module):
             hidden: (num_layers, batch, hidden_dim) — updated hidden state
         """
         if hidden is None:
-            hidden = torch.zeros(self.num_layers, x.size(0), self.hidden_dim)
+            hidden = torch.zeros(self.num_layers, x.size(0), self.hidden_dim, device=x.device)
 
         output, hidden = self.gru(x, hidden)
 
@@ -127,11 +129,11 @@ class PersonalityNetwork:
         self.context_dim = context_dim
         input_dim = concept_dim + limbic_dim + context_dim
 
-        self.network = PersonalityGRU(
+        self.network = to_device(PersonalityGRU(
             input_dim=input_dim,
             hidden_dim=hidden_dim,
             output_dim=concept_dim,
-        )
+        ))
         self.optimizer = optim.Adam(self.network.parameters(), lr=lr)
         self.criterion = nn.CosineEmbeddingLoss()
 
@@ -149,8 +151,8 @@ class PersonalityNetwork:
         self._total_loss = 0.0
 
         total = sum(p.numel() for p in self.network.parameters())
-        logger.info("Personality network initialized (%d parameters, hidden=%d)",
-                     total, hidden_dim)
+        logger.info("Personality network initialized (%d parameters, hidden=%d, device=%s)",
+                     total, hidden_dim, DEVICE)
 
     def experience(self, concept_embedding: np.ndarray,
                    limbic_state: Dict[str, float],
@@ -171,7 +173,7 @@ class PersonalityNetwork:
         """
         # Pack the experience vector
         experience_vec = self._pack_experience(concept_embedding, limbic_state, context)
-        input_tensor = torch.from_numpy(experience_vec).unsqueeze(0).unsqueeze(0)  # (1, 1, input_dim)
+        input_tensor = torch.from_numpy(experience_vec).unsqueeze(0).unsqueeze(0).to(DEVICE)  # (1, 1, input_dim)
 
         with torch.no_grad():
             response, prediction, new_hidden = self.network(input_tensor, self._hidden_state)
@@ -191,7 +193,7 @@ class PersonalityNetwork:
         if self._total_experiences % 5 == 0 and len(self._experience_buffer) > 2:
             self._train_on_buffer()
 
-        return response.squeeze(0).squeeze(0).numpy()
+        return response.squeeze(0).squeeze(0).cpu().numpy()
 
     def respond(self) -> np.ndarray:
         """
@@ -237,7 +239,7 @@ class PersonalityNetwork:
         """
         if self._hidden_state is None:
             return np.zeros(256, dtype=np.float32)
-        return self._hidden_state[-1].squeeze(0).numpy()
+        return self._hidden_state[-1].squeeze(0).cpu().numpy()
 
     def _train_on_buffer(self):
         """
@@ -259,8 +261,8 @@ class PersonalityNetwork:
             inputs.append(experiences[i]['input'])
             targets.append(experiences[i + 1]['concept'])
 
-        input_tensor = torch.from_numpy(np.array(inputs, dtype=np.float32)).unsqueeze(0)  # (1, T, input_dim)
-        target_tensor = torch.from_numpy(np.array(targets, dtype=np.float32)).unsqueeze(0)  # (1, T, concept_dim)
+        input_tensor = torch.from_numpy(np.array(inputs, dtype=np.float32)).unsqueeze(0).to(DEVICE)  # (1, T, input_dim)
+        target_tensor = torch.from_numpy(np.array(targets, dtype=np.float32)).unsqueeze(0).to(DEVICE)  # (1, T, concept_dim)
 
         # Forward pass
         _, prediction, _ = self.network(input_tensor, None)
@@ -268,7 +270,7 @@ class PersonalityNetwork:
         # Prediction loss: should predict the next concept
         pred_flat = prediction.view(-1, self.concept_dim)
         target_flat = target_tensor.view(-1, self.concept_dim)
-        labels = torch.ones(pred_flat.size(0))
+        labels = torch.ones(pred_flat.size(0), device=DEVICE)
 
         loss = self.criterion(pred_flat, target_flat, labels)
 

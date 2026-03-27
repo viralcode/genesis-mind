@@ -30,6 +30,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+from genesis.neural.device import DEVICE, to_device
+
 logger = logging.getLogger("genesis.neural.limbic_system")
 
 
@@ -80,7 +82,7 @@ class LimbicSystem:
         self.auditory_dim = auditory_dim
         input_dim = visual_dim + auditory_dim
 
-        self.network = LimbicNetwork(input_dim=input_dim)
+        self.network = to_device(LimbicNetwork(input_dim=input_dim))
         self.optimizer = optim.Adam(self.network.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
 
@@ -89,7 +91,7 @@ class LimbicSystem:
         self._total_loss = 0.0
 
         total = sum(p.numel() for p in self.network.parameters())
-        logger.info("Limbic system initialized (%d parameters)", total)
+        logger.info("Limbic system initialized (%d parameters, device=%s)", total, DEVICE)
 
     def react(self, visual_features: Optional[np.ndarray] = None,
               auditory_features: Optional[np.ndarray] = None) -> Dict[str, float]:
@@ -103,10 +105,10 @@ class LimbicSystem:
             Dict with dopamine, cortisol, serotonin, oxytocin levels (0-1)
         """
         features = self._make_features(visual_features, auditory_features)
-        tensor = torch.from_numpy(features).unsqueeze(0)
+        tensor = torch.from_numpy(features).unsqueeze(0).to(DEVICE)
 
         with torch.no_grad():
-            response = self.network(tensor).squeeze(0).numpy()
+            response = self.network(tensor).squeeze(0).cpu().numpy()
 
         self._reactions += 1
 
@@ -135,14 +137,14 @@ class LimbicSystem:
                before conscious mind even recognizes "stove"
         """
         features = self._make_features(visual_features, auditory_features)
-        input_tensor = torch.from_numpy(features).unsqueeze(0)
+        input_tensor = torch.from_numpy(features).unsqueeze(0).to(DEVICE)
 
         target = torch.tensor([[
             target_chemicals.get("dopamine", 0.5),
             target_chemicals.get("cortisol", 0.2),
             target_chemicals.get("serotonin", 0.5),
             target_chemicals.get("oxytocin", 0.3),
-        ]], dtype=torch.float32)
+        ]], dtype=torch.float32, device=DEVICE)
 
         prediction = self.network(input_tensor)
         loss = self.criterion(prediction, target)

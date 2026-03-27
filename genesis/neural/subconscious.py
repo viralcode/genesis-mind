@@ -1,24 +1,8 @@
-"""
-Genesis Mind — Subconscious Orchestrator
-
-This module ties together the entire neural cascade:
-
-    Raw Input → Layer 1 (Encode + Instinct) → Layer 2 (Bind) → Layer 3 (Think)
-
-It manages:
-    - Weight persistence (save/load all networks as a single checkpoint)
-    - The full forward pass through all three layers
-    - Real-time training on every experience
-    - Stats aggregation across all networks
-
-The Subconscious is the "spine" of the Society of Mind.
-All neural processing flows through it before reaching
-the conscious reasoning engine.
-"""
-
 import logging
 from pathlib import Path
 from typing import Dict, Optional
+from collections import deque
+import random
 
 import numpy as np
 
@@ -28,6 +12,7 @@ from genesis.neural.personality_network import PersonalityNetwork
 from genesis.neural.forward_model import WorldModel
 from genesis.neural.response_decoder import ResponseDecoder
 from genesis.neural.meta_controller import MetaController
+from genesis.neural.device import DEVICE, try_compile
 
 logger = logging.getLogger("genesis.neural.subconscious")
 
@@ -53,11 +38,9 @@ class Subconscious:
         weights_dir.mkdir(parents=True, exist_ok=True)
 
         # Layer 1: Emotional evaluation of raw sensory data
-        # visual_dim=64 from VisualCortex, auditory_dim=64 from AuditoryCortex
         self.limbic_system = LimbicSystem(visual_dim=64, auditory_dim=64, lr=0.0005)
 
         # Layer 2: Associative Bridge
-        # visual_dim=64, auditory_dim=64 — matches from-scratch cortex output
         self.binding_network = BindingNetwork(visual_dim=64, auditory_dim=64, output_dim=64, lr=0.001)
 
         # Layer 3: Conscious Executive
@@ -74,14 +57,31 @@ class Subconscious:
 
         # Meta-Controller: Neural Router (the Thalamus)
         self.meta_controller = MetaController(
-            input_dim=128,  # 64 visual + 64 auditory (from scratch)
+            input_dim=128,
             num_modules=4,
             hidden_dim=64,
             lr=0.0003,
         )
 
-        # Load existing weights if they exist
+        # ═══ Live Experience Replay Buffer (PRIORITIZED) ═══
+        self.replay_buffer = deque(maxlen=10000)
+        self._replay_count = 0
+
+        # ═══ Curriculum Gating Thresholds ═══
+        self._visual_cortex_loss = 1.0
+        self._binding_gate_open = False
+        self._personality_gate_open = False
+        self._world_model_gate_open = False
+
+        # Load existing weights BEFORE torch.compile
         self._load_all()
+
+        # ═══ torch.compile() on ALL networks ═══
+        self.limbic_system.network = try_compile(self.limbic_system.network, "LimbicNetwork")
+        self.binding_network.network = try_compile(self.binding_network.network, "BindingNetwork")
+        self.personality.network = try_compile(self.personality.network, "PersonalityGRU")
+        self.world_model.network = try_compile(self.world_model.network, "WorldModel")
+        self.meta_controller.network = try_compile(self.meta_controller.network, "MetaController")
 
         # Total params across all networks
         total_params = (
@@ -93,18 +93,37 @@ class Subconscious:
 
         logger.info("═══════════════════════════════════════════════════")
         logger.info("  SUBCONSCIOUS INITIALIZED — %d total parameters", total_params)
-        logger.info("  Layer 1: Limbic Instinct (%d)", sum(p.numel() for p in self.limbic_system.network.parameters()))
+        logger.info("  Device: %s | torch.compile: ON | AMP: ON", DEVICE)
+        logger.info("  Layer 1: Limbic (%d)", sum(p.numel() for p in self.limbic_system.network.parameters()))
         logger.info("  Layer 2: Binding (%d)", sum(p.numel() for p in self.binding_network.network.parameters()))
         logger.info("  Layer 3: Personality (%d)", sum(p.numel() for p in self.personality.network.parameters()))
         logger.info("  Layer 4: World Model (%d)", sum(p.numel() for p in self.world_model.network.parameters()))
         logger.info("  Router:  Meta-Controller (%d)", sum(p.numel() for p in self.meta_controller.network.parameters()))
+        logger.info("  Replay: Tri-signal priority (surprise+emotion+drive), 10K buffer")
+        logger.info("  Curriculum Gating: ON (VC<0.05 → binding, binding>10 → personality)")
         logger.info("  All weights learned from scratch — ZERO pretrained models.")
         logger.info("═══════════════════════════════════════════════════")
+
+    def update_curriculum_gates(self, visual_cortex_loss: float = 1.0):
+        """
+        Update curriculum gating thresholds from external signals.
+        
+        Gates:
+            - Binding trains when visual cortex loss < 0.05
+            - Personality trains when binding has > 10 training steps
+            - World model trains when personality has > 5 experiences
+        """
+        self._visual_cortex_loss = visual_cortex_loss
+        self._binding_gate_open = visual_cortex_loss < 0.05
+        self._personality_gate_open = self.binding_network._training_steps > 10
+        self._world_model_gate_open = self.personality._total_experiences > 5
 
     def process_experience(self,
                            visual_embedding: Optional[np.ndarray] = None,
                            text_embedding: Optional[np.ndarray] = None,
                            context: Optional[np.ndarray] = None,
+                           emotional_intensity: float = 0.0,
+                           drive_hunger: float = 0.0,
                            train: bool = True) -> Dict:
         """
         The full subconscious cascade.
@@ -113,11 +132,9 @@ class Subconscious:
         and AuditoryCortex/PhonemeEmbedder (64-dim), and flows them
         through the plastic neural layers.
 
-        Returns a dict with:
-            - limbic_response: Dict of neurochemical levels
-            - concept_embedding: 64-dim unified concept
-            - personality_response: 64-dim response from the personality
-            - consciousness_state: 128-dim current hidden state
+        Args:
+            emotional_intensity: Current emotional intensity (0-1) from EmotionalState
+            drive_hunger: Current dominant drive hunger level (0-1) from DriveSystem
         """
         result = {}
 
@@ -130,23 +147,40 @@ class Subconscious:
 
         # ─── Layer 1: Encode (Instinct) ───────────────────────
         limbic_response = self.limbic_system.react(visual_latent, auditory_latent)
-        # Scale by routing weight
         limbic_weight = routing['limbic']
         scaled_limbic = {
             k: v * limbic_weight for k, v in limbic_response.items()
         }
-        result['limbic_response'] = limbic_response  # Keep raw for training
+        result['limbic_response'] = limbic_response
         result['scaled_limbic'] = scaled_limbic
 
         # ─── Layer 2: Bind ────────────────────────────────────
         concept_embedding = self.binding_network.bind(visual_latent, auditory_latent)
-        # Scale by routing weight
         binding_weight = routing['binding']
         scaled_concept = concept_embedding * binding_weight
-        result['concept_embedding'] = concept_embedding  # Keep raw
+        result['concept_embedding'] = concept_embedding
 
-        if train:
-            pass  # Replay buffer handles offline batch training
+        # ═══ LIVE TRAINING: Prioritized replay on EVERY conscious cycle ═══
+        if train and self._binding_gate_open:
+            self._replay_count += 1
+            buf_len = len(self.replay_buffer)
+            if buf_len >= 4:
+                # Adaptive batch: min(64, buffer_size), at least 4
+                batch_size = min(64, max(4, buf_len // 2))
+                batch = self._sample_prioritized(batch_size=batch_size)
+                if len(batch) >= 2:
+                    loss = self.binding_network.train_binding_batch(
+                        [b['visual'] for b in batch],
+                        [b['auditory'] for b in batch]
+                    )
+                    if loss > 0 and self._replay_count % 25 == 0:
+                        logger.info(
+                            "Live replay: binding loss=%.4f batch=%d buf=%d gates=[B:%s P:%s W:%s]",
+                            loss, len(batch), buf_len,
+                            "✓" if self._binding_gate_open else "✗",
+                            "✓" if self._personality_gate_open else "✗",
+                            "✓" if self._world_model_gate_open else "✗",
+                        )
 
         # ─── Layer 3: Think ─────────────────────────────────
         personality_weight = routing['personality']
@@ -158,21 +192,68 @@ class Subconscious:
         result['personality_response'] = response
         result['consciousness_state'] = self.personality.get_consciousness_state()
         
-        if train:
-            # Predict the future and learn from the surprise
-            surprise = self.world_model.predict_and_learn(result['concept_embedding'], result['consciousness_state'])
+        surprise = 0.0
+        if train and self._world_model_gate_open:
+            surprise = self.world_model.predict_and_learn(
+                result['concept_embedding'], result['consciousness_state']
+            )
             result['surprise'] = surprise
-
-            # Train the meta-controller from surprise
             self.meta_controller.learn_from_surprise(
                 visual_latent, auditory_latent, surprise
             )
+        else:
+            result['surprise'] = 0.0
+
+        # ═══ Store in replay buffer with TRI-SIGNAL priority ═══
+        if train:
+            self.replay_buffer.append({
+                'visual': visual_latent.copy(),
+                'auditory': auditory_latent.copy(),
+                'limbic': limbic_response,
+                'concept': concept_embedding.copy(),
+                'surprise': max(surprise, 0.01),
+                'emotional_intensity': max(emotional_intensity, 0.01),
+                'drive_hunger': max(drive_hunger, 0.01),
+            })
 
         return result
 
     def decode_response(self, response_embedding: np.ndarray, semantic_memory) -> str:
         """Decode the GRU's response embedding into text — the neural voice."""
         return self.response_decoder.decode(response_embedding, semantic_memory)
+
+    def _sample_prioritized(self, batch_size: int = 32) -> list:
+        """
+        Tri-signal prioritized replay sampling.
+
+        Priority = surprise * 0.5 + emotional_intensity * 0.3 + drive_hunger * 0.2
+        
+        High-surprise experiences teach about prediction errors.
+        High-emotion experiences are more salient (like traumatic/joyful memories).
+        High-drive experiences connect to motivational relevance.
+        
+        Recency bias ensures newer experiences get slightly higher weight.
+        """
+        if len(self.replay_buffer) < batch_size:
+            return list(self.replay_buffer)
+        
+        # Tri-signal priority
+        surprises = np.array([exp.get('surprise', 0.01) for exp in self.replay_buffer])
+        emotions = np.array([exp.get('emotional_intensity', 0.01) for exp in self.replay_buffer])
+        drives = np.array([exp.get('drive_hunger', 0.01) for exp in self.replay_buffer])
+        
+        priorities = surprises * 0.5 + emotions * 0.3 + drives * 0.2
+        
+        # Recency bias: newer experiences get up to 2x weight
+        recency = np.linspace(0.5, 1.0, len(priorities))
+        priorities = priorities * recency
+        
+        # Normalize to probability distribution
+        priorities = priorities / (priorities.sum() + 1e-8)
+        
+        indices = np.random.choice(len(self.replay_buffer), size=batch_size, 
+                                    replace=False, p=priorities)
+        return [self.replay_buffer[i] for i in indices]
 
     def train_instinct(self, visual_features: Optional[np.ndarray],
                        auditory_features: Optional[np.ndarray],
@@ -240,6 +321,17 @@ class Subconscious:
             },
             "router": {
                 "meta_controller": self.meta_controller.get_stats(),
+            },
+            "training": {
+                "replay_buffer_size": len(self.replay_buffer),
+                "replay_count": self._replay_count,
+                "device": str(DEVICE),
+                "curriculum": {
+                    "visual_cortex_loss": round(self._visual_cortex_loss, 6),
+                    "binding_gate": self._binding_gate_open,
+                    "personality_gate": self._personality_gate_open,
+                    "world_model_gate": self._world_model_gate_open,
+                },
             },
         }
 

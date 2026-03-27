@@ -354,6 +354,22 @@ class BrainDaemon:
         logger.info("All brain threads stopped.")
 
     # =========================================================================
+    # Replay Signal Helpers
+    # =========================================================================
+
+    def _get_replay_signals(self) -> dict:
+        """Get emotional intensity + drive hunger for tri-signal replay priority."""
+        try:
+            ei = self.mind.emotional_state.get_emotional_intensity()
+        except Exception:
+            ei = 0.0
+        try:
+            _, dh = self.mind.drives.get_dominant_drive()
+        except Exception:
+            dh = 0.0
+        return {"emotional_intensity": ei, "drive_hunger": dh}
+
+    # =========================================================================
     # Thread 1: Neurochemistry Ticker
     # =========================================================================
 
@@ -419,10 +435,24 @@ class BrainDaemon:
         """
         Update internal body state — time awareness, fatigue level.
         This vector is continuously fed into the GRU.
+        Also updates curriculum gating thresholds.
         """
         # Proprioception auto-updates on get_context_vector()
         # Just keep it warm by requesting the state
         self.mind.proprioception.get_context_vector()
+
+        # ═══ Update Curriculum Gates ═══
+        # Feed the visual cortex's current loss into the subconscious
+        # so higher layers only train when lower layers are ready
+        try:
+            eyes = self.mind._eyes if hasattr(self.mind, '_eyes') else None
+            if eyes and hasattr(eyes, '_visual_cortex'):
+                vc_stats = eyes._visual_cortex.get_stats()
+                self.mind.subconscious.update_curriculum_gates(
+                    visual_cortex_loss=vc_stats.get('avg_loss', 1.0)
+                )
+        except Exception:
+            pass  # Non-critical
 
     # =========================================================================
     # Thread 4: Inner Monologue
@@ -559,7 +589,8 @@ class BrainDaemon:
                 visual_embedding=embedding,
                 text_embedding=None,
                 context=context_vec,
-                train=True,  # Actually learn from what we see
+                train=True,
+                **self._get_replay_signals(),
             )
 
             # Check curiosity — is this something entirely new?
@@ -698,6 +729,7 @@ class BrainDaemon:
                     text_embedding=None,
                     context=context_vec,
                     train=True,
+                    **self._get_replay_signals(),
                 )
 
             else:

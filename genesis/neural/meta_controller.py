@@ -41,6 +41,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+from genesis.neural.device import DEVICE, to_device
+
 logger = logging.getLogger("genesis.neural.meta_controller")
 
 
@@ -107,7 +109,7 @@ class MetaController:
         self.input_dim = input_dim
         self.num_modules = num_modules
 
-        self.network = RouterNetwork(input_dim, num_modules, hidden_dim)
+        self.network = to_device(RouterNetwork(input_dim, num_modules, hidden_dim))
         self.optimizer = optim.Adam(self.network.parameters(), lr=lr)
 
         # Routing history for introspection
@@ -119,8 +121,8 @@ class MetaController:
         self._avg_weights = np.ones(num_modules, dtype=np.float32) / num_modules
 
         total_params = sum(p.numel() for p in self.network.parameters())
-        logger.info("Meta-controller initialized (%d params, %d modules)",
-                     total_params, num_modules)
+        logger.info("Meta-controller initialized (%d params, %d modules, device=%s)",
+                     total_params, num_modules, DEVICE)
 
     def route(self, visual_embedding: np.ndarray,
               text_embedding: np.ndarray) -> Dict[str, float]:
@@ -147,8 +149,8 @@ class MetaController:
             combined = combined[:self.input_dim]
 
         with torch.no_grad():
-            input_tensor = torch.from_numpy(combined).unsqueeze(0)
-            weights = self.network(input_tensor).squeeze(0).numpy()
+            input_tensor = torch.from_numpy(combined).unsqueeze(0).to(DEVICE)
+            weights = self.network(input_tensor).squeeze(0).cpu().numpy()
 
         # Build named routing dict
         routing = {}
@@ -188,7 +190,7 @@ class MetaController:
         elif len(combined) > self.input_dim:
             combined = combined[:self.input_dim]
 
-        input_tensor = torch.from_numpy(combined).unsqueeze(0)
+        input_tensor = torch.from_numpy(combined).unsqueeze(0).to(DEVICE)
         weights = self.network(input_tensor)
 
         # Loss: encourage the router to produce weights that minimize surprise

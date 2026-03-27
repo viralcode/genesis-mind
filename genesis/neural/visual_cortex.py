@@ -19,6 +19,8 @@ Total params: ~50K (vs CLIP's 150M). All learned from scratch.
 import logging
 import json
 from pathlib import Path
+
+from genesis.neural.device import DEVICE, to_device, try_compile, get_autocast_context
 from typing import Optional, Tuple
 
 import numpy as np
@@ -116,8 +118,8 @@ class VisualCortex:
         self.input_size = input_size
         self._storage_path = storage_path
         
-        self.encoder = VisualEncoder(latent_dim, input_size)
-        self.decoder = VisualDecoder(latent_dim, input_size)
+        self.encoder = to_device(VisualEncoder(latent_dim, input_size))
+        self.decoder = to_device(VisualDecoder(latent_dim, input_size))
         
         self.optimizer = torch.optim.Adam(
             list(self.encoder.parameters()) + list(self.decoder.parameters()),
@@ -128,50 +130,75 @@ class VisualCortex:
         self._total_loss = 0.0
         self._frames_seen = 0
         
-        # Load saved weights if available
+        # ═══ FRAME ACCUMULATION BUFFER ═══
+        # Accumulate 4 frames before batched training for stabler gradients
+        self._frame_buffer = []
+        self._frame_batch_size = 4
+        
+        # Load saved weights BEFORE torch.compile() — compile wraps keys
         self._load()
+        
+        # torch.compile() for free speedup (must be after weight loading)
+        self.encoder = try_compile(self.encoder, 'VisualEncoder')
+        self.decoder = try_compile(self.decoder, 'VisualDecoder')
         
         total_params = sum(
             p.numel() for p in list(self.encoder.parameters()) + list(self.decoder.parameters())
         )
         logger.info(
-            "Visual cortex initialized (latent=%d, params=%d, trained=%d steps)",
-            latent_dim, total_params, self._train_steps,
+            "Visual cortex initialized (latent=%d, params=%d, trained=%d steps, batch=%d)",
+            latent_dim, total_params, self._train_steps, self._frame_batch_size,
         )
     
     def see(self, image: np.ndarray, train: bool = True) -> np.ndarray:
         """
         Process a visual frame — encode it and optionally learn from it.
         
-        Args:
-            image: Raw image as numpy array (H, W, 3) with values [0, 255]
-            train: If True, also train the autoencoder on this frame
-            
+        When training, frames are accumulated into a batch of 4 before
+        a single batched backward pass. This gives stabler gradients
+        and better GPU utilization than single-frame updates.
+        
         Returns:
             64-dim visual embedding as numpy array
         """
-        # Preprocess: resize to input_size, normalize to [0, 1], convert to tensor
         tensor = self._preprocess(image)
         
-        if train:
-            return self._train_step(tensor)
-        else:
+        if not train:
             self.encoder.eval()
             with torch.no_grad():
                 embedding = self.encoder(tensor)
             return embedding.squeeze(0).cpu().numpy()
+        
+        # Always return embedding immediately (encode is cheap)
+        self.encoder.eval()
+        with torch.no_grad():
+            embedding = self.encoder(tensor)
+        result = embedding.squeeze(0).cpu().numpy()
+        
+        # Accumulate frame for batched training
+        self._frame_buffer.append(tensor)
+        if len(self._frame_buffer) >= self._frame_batch_size:
+            self._train_batch()
+        
+        return result
     
-    def _train_step(self, tensor: torch.Tensor) -> np.ndarray:
-        """Train on a single frame via reconstruction loss."""
+    def _train_batch(self):
+        """Train on accumulated frame batch — AMP enabled."""
+        if not self._frame_buffer:
+            return
+        
         self.encoder.train()
         self.decoder.train()
         
-        # Forward pass
-        embedding = self.encoder(tensor)
-        reconstruction = self.decoder(embedding)
+        # Stack frames into a batch
+        batch = torch.cat(self._frame_buffer, dim=0)  # (N, 3, H, W)
+        self._frame_buffer.clear()
         
-        # Reconstruction loss (MSE between original and reconstructed)
-        loss = F.mse_loss(reconstruction, tensor)
+        # Forward pass with AMP autocast
+        with get_autocast_context():
+            embeddings = self.encoder(batch)
+            reconstructions = self.decoder(embeddings)
+            loss = F.mse_loss(reconstructions, batch)
         
         # Backward pass
         self.optimizer.zero_grad()
@@ -182,20 +209,19 @@ class VisualCortex:
         )
         self.optimizer.step()
         
-        self._train_steps += 1
-        self._total_loss += loss.item()
-        self._frames_seen += 1
+        batch_size = batch.shape[0]
+        self._train_steps += batch_size
+        self._total_loss += loss.item() * batch_size
+        self._frames_seen += batch_size
         
         # Periodic logging
-        if self._train_steps % 100 == 0:
+        if self._train_steps % 100 < batch_size:
             avg_loss = self._total_loss / max(1, self._train_steps)
             logger.info(
-                "Visual cortex: %d frames, avg_loss=%.4f",
-                self._train_steps, avg_loss,
+                "Visual cortex: %d frames, avg_loss=%.4f (batch=%d, AMP)",
+                self._train_steps, avg_loss, batch_size,
             )
             self._save()
-        
-        return embedding.detach().squeeze(0).cpu().numpy()
     
     def _preprocess(self, image: np.ndarray) -> torch.Tensor:
         """
@@ -219,7 +245,7 @@ class VisualCortex:
         if arr.ndim == 2:
             arr = np.stack([arr] * 3, axis=-1)  # Grayscale → RGB
         arr = arr[:, :, :3]  # Ensure 3 channels
-        tensor = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0)  # (1, 3, H, W)
+        tensor = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0).to(DEVICE)  # (1, 3, H, W)
         
         return tensor
     
