@@ -30,6 +30,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+from genesis.training_utils import safe_backward, WarmupScheduler, init_weights
+
 from genesis.neural.device import DEVICE, get_state_dict_safe, strip_compile_prefix, to_device
 
 logger = logging.getLogger("genesis.neural.limbic_system")
@@ -83,12 +85,15 @@ class LimbicSystem:
         input_dim = visual_dim + auditory_dim
 
         self.network = to_device(LimbicNetwork(input_dim=input_dim))
+        init_weights(self.network)  # Xavier/zeros initialization
         self.optimizer = optim.Adam(self.network.parameters(), lr=lr)
+        self.scheduler = WarmupScheduler(self.optimizer, warmup_steps=50, mode="cosine")
         self.criterion = nn.MSELoss()
 
         self._reactions = 0
         self._training_steps = 0
         self._total_loss = 0.0
+        self._last_grad_norm = 0.0
 
         total = sum(p.numel() for p in self.network.parameters())
         logger.info("Limbic system initialized (%d parameters, device=%s)", total, DEVICE)
@@ -149,9 +154,13 @@ class LimbicSystem:
         prediction = self.network(input_tensor)
         loss = self.criterion(prediction, target)
 
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+        grad_norm = safe_backward(
+            loss, self.optimizer,
+            self.network.parameters(),
+            max_norm=1.0,
+            scheduler=self.scheduler,
+        )
+        self._last_grad_norm = grad_norm
 
         self._training_steps += 1
         self._total_loss += loss.item()
@@ -207,4 +216,6 @@ class LimbicSystem:
             "training_steps": self._training_steps,
             "avg_loss": self._total_loss / max(1, self._training_steps),
             "params": sum(p.numel() for p in self.network.parameters()),
+            "last_grad_norm": round(self._last_grad_norm, 6),
+            "current_lr": round(self.scheduler.get_lr(), 8),
         }

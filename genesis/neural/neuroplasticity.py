@@ -55,11 +55,12 @@ GROWTH_FLOOR = {
 }
 
 # Experience-driven growth parameters
-GROWTH_RATE = 16          # Add 16 neurons per sqrt(concept) growth step
+GROWTH_RATE = 8            # Add 8 neurons per sqrt(concept) growth step (reduced from 16 for stability)
 GROWTH_TRIGGER = 25       # Grow every 25 new concepts learned
 GRU_LAYER_TRIGGER = 500   # Add a new GRU layer every 500 concepts
 MAX_GRU_LAYERS = 20       # Practical limit for GRU depth (memory)
 MIN_CONCEPTS_FOR_GROWTH = 10  # Don't grow from experience until 10 concepts
+GROWTH_COOLDOWN = 50      # Minimum concepts between growth events (prevents instability)
 
 
 def compute_target_hidden(phase: int, concept_count: int) -> int:
@@ -224,6 +225,12 @@ class Neuroplasticity:
         self._growth_history: List[Dict] = []
         self._total_growth_events = 0
         self._last_growth_concept_count = 0
+        self._last_growth_step = 0  # Training step at last growth
+        
+        # Post-growth warmup
+        from genesis.training_utils import GrowthWarmup
+        self.growth_warmup = GrowthWarmup(warmup_steps=20)
+        
         logger.info("Neuroplasticity engine initialized — UNBOUNDED growth, no parameter ceiling")
 
     def should_grow(self, current_phase: int, subconscious,
@@ -240,11 +247,15 @@ class Neuroplasticity:
 
         # Phase-based growth
         if target_hidden > current_hidden:
+            # Even phase growth respects cooldown after the initial setup
+            concepts_since_growth = concept_count - self._last_growth_concept_count
+            if self._total_growth_events > 0 and concepts_since_growth < GROWTH_COOLDOWN:
+                return False
             return True
 
         # Experience-based growth: trigger every GROWTH_TRIGGER concepts
         concepts_since_growth = concept_count - self._last_growth_concept_count
-        if concepts_since_growth >= GROWTH_TRIGGER:
+        if concepts_since_growth >= GROWTH_TRIGGER and concepts_since_growth >= GROWTH_COOLDOWN:
             # Recompute — experience might demand larger network
             target_hidden = compute_target_hidden(current_phase, concept_count)
             if target_hidden > current_hidden:
@@ -395,13 +406,19 @@ class Neuroplasticity:
         logger.info("  🧠 NEURAL GROWTH COMPLETE: %d → %d params (+%d, +%.1f%%) [NO CEILING]",
                      params_before, params_after, growth, report["growth_pct"])
 
+        # Trigger post-growth warmup to protect existing knowledge
+        self.growth_warmup.trigger()
+
         return report
 
     def get_stats(self) -> Dict:
         return {
             "total_growth_events": self._total_growth_events,
-            "growth_history": self._growth_history,
+            "growth_history": self._growth_history[-5:],  # Last 5 events only
             "last_growth_at_concepts": self._last_growth_concept_count,
+            "growth_warmup_active": self.growth_warmup.is_active,
+            "growth_cooldown": GROWTH_COOLDOWN,
+            "growth_rate": GROWTH_RATE,
             "ceiling": "NONE — unbounded growth",
         }
 

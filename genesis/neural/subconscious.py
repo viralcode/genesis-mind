@@ -1,6 +1,7 @@
 import logging
+import time
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from collections import deque
 import random
 
@@ -72,6 +73,15 @@ class Subconscious:
         self._binding_gate_open = False
         self._personality_gate_open = False
         self._world_model_gate_open = False
+
+        # ═══ Training History (Observability) ═══
+        self._loss_history: Dict[str, deque] = {
+            'binding': deque(maxlen=500),
+            'personality': deque(maxlen=500),
+            'world_model': deque(maxlen=500),
+            'limbic': deque(maxlen=500),
+        }
+        self._last_concept_embedding: Optional[np.ndarray] = None  # For temporal prediction
 
         # Load existing weights BEFORE torch.compile
         self._load_all()
@@ -183,6 +193,9 @@ class Subconscious:
                             "✓" if self._personality_gate_open else "✗",
                             "✓" if self._world_model_gate_open else "✗",
                         )
+                    # Record binding loss
+                    if loss > 0:
+                        self._loss_history['binding'].append((time.time(), loss))
 
         # ─── Layer 3: Think ─────────────────────────────────
         personality_weight = routing['personality']
@@ -203,8 +216,19 @@ class Subconscious:
             self.meta_controller.learn_from_surprise(
                 visual_latent, auditory_latent, surprise
             )
+            # Record world model loss
+            self._loss_history['world_model'].append((time.time(), surprise))
         else:
             result['surprise'] = 0.0
+
+        # ═══ Temporal Prediction Signal ═══
+        # If we have a previous concept embedding, compute prediction error
+        if self._last_concept_embedding is not None and train:
+            pred_error = float(np.linalg.norm(concept_embedding - self._last_concept_embedding))
+            result['temporal_prediction_error'] = pred_error
+        else:
+            result['temporal_prediction_error'] = 0.0
+        self._last_concept_embedding = concept_embedding.copy()
 
         # ═══ Store in replay buffer with TRI-SIGNAL priority ═══
         if train:
@@ -345,6 +369,18 @@ class Subconscious:
             sum(p.numel() for p in self.world_model.network.parameters()) +
             sum(p.numel() for p in self.meta_controller.network.parameters())
         )
+
+    def get_training_history(self) -> Dict[str, List]:
+        """Return per-network loss history for dashboard visualization."""
+        return {
+            name: [(t, l) for t, l in history]
+            for name, history in self._loss_history.items()
+        }
+
+    def record_loss(self, network_name: str, loss_value: float):
+        """Record a training loss from an external caller (e.g., limbic training in main.py)."""
+        if network_name in self._loss_history:
+            self._loss_history[network_name].append((time.time(), loss_value))
 
     def __repr__(self) -> str:
         return f"Subconscious(params={self.get_total_params()}, weights_dir={self.weights_dir})"

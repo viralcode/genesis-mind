@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genesis Mind V7 — Neural Explorer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/explorer.css') }}">
+</head>
+<body>
+    <div class="background-anim"></div>
+    
+    <header class="app-header">
+        <div class="logo">
+            <div class="pulse-ring"></div>
+            <h1>Genesis Mind <span>V7</span></h1>
+            <span class="badge" id="phase-badge">Phase 0</span>
+        </div>
+        <nav class="top-nav">
+            <a href="/" class="nav-link">Dashboard</a>
+            <a href="/network" class="nav-link">Neural Network</a>
+            <a href="/explorer" class="nav-link active">Explorer</a>
+        </nav>
+        <div class="status-indicator">
+            <span class="dot live"></span>
+            <span id="connection-status">Live Neural Introspection</span>
+        </div>
+    </header>
+
+    <main class="explorer-main">
+        <!-- System health bar -->
+        <section class="system-bar glass-panel">
+            <div class="sys-stat">
+                <span class="sys-label">Total Parameters</span>
+                <span class="sys-value mono" id="sys-params">—</span>
+            </div>
+            <div class="sys-stat">
+                <span class="sys-label">Total Train Steps</span>
+                <span class="sys-value mono" id="sys-steps">—</span>
+            </div>
+            <div class="sys-stat">
+                <span class="sys-label">Growth Events</span>
+                <span class="sys-value mono" id="sys-growth">—</span>
+            </div>
+            <div class="sys-stat">
+                <span class="sys-label">Phase</span>
+                <span class="sys-value mono" id="sys-phase">—</span>
+            </div>
+            <div class="sys-stat curriculum-pipe">
+                <span class="sys-label">Curriculum Pipeline</span>
+                <div class="pipe-flow" id="curriculum-pipeline"></div>
+            </div>
+        </section>
+
+        <!-- Network overview grid -->
+        <section class="network-grid" id="network-grid">
+            <!-- Cards injected by JS -->
+        </section>
+
+        <!-- Deep dive panel (hidden until card clicked) -->
+        <section class="deep-dive glass-panel" id="deep-dive" style="display:none;">
+            <div class="dd-header">
+                <div class="dd-title-row">
+                    <h2 id="dd-title">—</h2>
+                    <span class="dd-desc" id="dd-desc"></span>
+                </div>
+                <button class="dd-close" id="dd-close" title="Close">✕</button>
+            </div>
+
+            <div class="dd-body">
+                <!-- Left: Architecture + Stats -->
+                <div class="dd-col dd-arch">
+                    <h3>Architecture</h3>
+                    <div class="arch-layers" id="dd-layers"></div>
+                    <div class="dd-stats-grid" id="dd-stats"></div>
+                </div>
+
+                <!-- Middle: Weight distributions -->
+                <div class="dd-col dd-weights">
+                    <h3>Weight Distributions</h3>
+                    <div class="weight-histograms" id="dd-histograms"></div>
+                </div>
+
+                <!-- Right: Live activations -->
+                <div class="dd-col dd-activations">
+                    <h3>Live Activations</h3>
+                    <div id="dd-activation-content"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/explorer.js') }}"></script>
+</body>
+</html>

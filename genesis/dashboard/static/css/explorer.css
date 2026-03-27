@@ -1,0 +1,456 @@
+/*
+  Genesis Mind V7 — Neural Explorer Styles
+  Deep introspection UI for all neural networks
+*/
+
+/* ═══ Main Layout ═══ */
+.explorer-main {
+    padding: 1.5rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* ═══ System Health Bar ═══ */
+.system-bar {
+    display: flex;
+    align-items: flex-start;
+    gap: 2.5rem;
+    padding: 1rem 1.5rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+.sys-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.sys-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+}
+
+.sys-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.curriculum-pipe {
+    flex-grow: 1;
+    min-width: 300px;
+}
+
+.pipe-flow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+}
+
+.pipe-node {
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', monospace;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03);
+    transition: all 0.3s;
+}
+
+.pipe-node.active {
+    background: rgba(0, 230, 118, 0.15);
+    border-color: rgba(0, 230, 118, 0.4);
+    color: #00e676;
+    box-shadow: 0 0 8px rgba(0, 230, 118, 0.15);
+}
+
+.pipe-node.gated {
+    background: rgba(255, 82, 82, 0.1);
+    border-color: rgba(255, 82, 82, 0.3);
+    color: #ff5252;
+}
+
+.pipe-arrow {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+/* ═══ Network Grid ═══ */
+.network-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+.net-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.net-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 3px;
+    transition: opacity 0.3s;
+}
+
+.net-card[data-category="sensory"]::before { background: linear-gradient(90deg, #ef5350, #ff7043); }
+.net-card[data-category="emotional"]::before { background: linear-gradient(90deg, #ffd54f, #ffb74d); }
+.net-card[data-category="cognitive"]::before { background: linear-gradient(90deg, #4fc3f7, #81d4fa); }
+.net-card[data-category="acoustic"]::before { background: linear-gradient(90deg, #00e676, #69f0ae); }
+
+.net-card:hover {
+    border-color: rgba(79, 195, 247, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+
+.net-card.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.net-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.6rem;
+}
+
+.net-card-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-main);
+    text-transform: capitalize;
+}
+
+.health-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 4px;
+}
+
+.health-dot.good { background: #00e676; box-shadow: 0 0 6px rgba(0,230,118,0.5); }
+.health-dot.learning { background: #ffd54f; box-shadow: 0 0 6px rgba(255,213,79,0.5); }
+.health-dot.early { background: #ff7043; box-shadow: 0 0 6px rgba(255,112,67,0.5); }
+.health-dot.idle { background: #616161; }
+
+.net-card-desc {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    margin-bottom: 0.8rem;
+    line-height: 1.3;
+}
+
+.net-card-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+}
+
+.net-stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.net-stat-label {
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.net-stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-main);
+    font-weight: 500;
+}
+
+.net-stat-value.loss {
+    color: #ffd54f;
+}
+
+/* ═══ Deep Dive Panel ═══ */
+.deep-dive {
+    padding: 1.5rem;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.dd-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.2rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.dd-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+}
+
+.dd-title-row h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.dd-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.dd-close {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.dd-close:hover {
+    background: rgba(255,82,82,0.15);
+    border-color: rgba(255,82,82,0.3);
+    color: #ff5252;
+}
+
+.dd-body {
+    display: grid;
+    grid-template-columns: 280px 1fr 280px;
+    gap: 1.5rem;
+    min-height: 300px;
+}
+
+.dd-col h3 {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 0.8rem;
+}
+
+/* Architecture layers */
+.arch-layers {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.arch-layer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.35rem 0.6rem;
+    background: rgba(255,255,255,0.03);
+    border-radius: 4px;
+    border-left: 2px solid rgba(79,195,247,0.3);
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.arch-layer-name {
+    color: var(--accent);
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.arch-layer-shape {
+    color: var(--text-muted);
+    font-size: 0.6rem;
+}
+
+/* Stats grid inside deep dive */
+.dd-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.dd-stat-item {
+    display: flex;
+    flex-direction: column;
+    padding: 0.4rem;
+    background: rgba(255,255,255,0.02);
+    border-radius: 4px;
+}
+
+.dd-stat-item .net-stat-label {
+    font-size: 0.55rem;
+}
+
+.dd-stat-item .net-stat-value {
+    font-size: 0.75rem;
+}
+
+/* Weight histograms */
+.weight-histograms {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.8rem;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.hist-card {
+    background: rgba(0,0,0,0.3);
+    border-radius: 6px;
+    padding: 0.6rem;
+    border: 1px solid rgba(255,255,255,0.04);
+}
+
+.hist-title {
+    font-size: 0.6rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    margin-bottom: 0.3rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hist-canvas {
+    width: 100%;
+    height: 50px;
+    display: block;
+}
+
+.hist-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.55rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+}
+
+/* Activations */
+.activation-heatmap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+}
+
+.activation-cell {
+    width: 8px;
+    height: 8px;
+    border-radius: 1px;
+    transition: background 0.3s;
+}
+
+.routing-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.routing-bar-label {
+    font-size: 0.65rem;
+    min-width: 80px;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.routing-bar-track {
+    flex-grow: 1;
+    height: 12px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.routing-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent), #81d4fa);
+    transition: width 0.5s ease;
+}
+
+.routing-bar-value {
+    font-size: 0.65rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-main);
+    min-width: 35px;
+    text-align: right;
+}
+
+/* Codebook usage grid */
+.codebook-grid {
+    display: grid;
+    grid-template-columns: repeat(16, 1fr);
+    gap: 1px;
+}
+
+.codebook-cell {
+    aspect-ratio: 1;
+    border-radius: 2px;
+    transition: background 0.3s;
+}
+
+/* Scrollbar styling */
+.arch-layers::-webkit-scrollbar,
+.weight-histograms::-webkit-scrollbar {
+    width: 4px;
+}
+
+.arch-layers::-webkit-scrollbar-thumb,
+.weight-histograms::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .dd-body {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 800px) {
+    .network-grid {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+    .system-bar {
+        gap: 1rem;
+    }
+}

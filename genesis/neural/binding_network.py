@@ -19,6 +19,7 @@ the auditory pattern of the word "apple" — and binds them.
 """
 
 import logging
+import math
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -26,6 +27,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
+from genesis.training_utils import safe_backward, WarmupScheduler, init_weights
 
 from genesis.neural.device import DEVICE, get_state_dict_safe, strip_compile_prefix, to_device
 
@@ -91,11 +94,14 @@ class BindingNetwork:
         self.output_dim = output_dim
 
         self.network = to_device(CrossModalBinder(visual_dim, auditory_dim, output_dim))
+        init_weights(self.network)  # Xavier/zeros initialization
         self.optimizer = optim.Adam(self.network.parameters(), lr=lr)
+        self.scheduler = WarmupScheduler(self.optimizer, warmup_steps=50, mode="cosine")
 
         self._bindings_created = 0
         self._training_steps = 0
         self._total_loss = 0.0
+        self._last_grad_norm = 0.0
 
         total = sum(p.numel() for p in self.network.parameters())
         logger.info("Binding network initialized (%d parameters, device=%s)", total, DEVICE)
@@ -147,9 +153,17 @@ class BindingNetwork:
         loss_a = nn.functional.cross_entropy(logits_per_auditory, labels)
         total_loss = (loss_v + loss_a) / 2.0
         
-        self.optimizer.zero_grad()
-        total_loss.backward()
-        self.optimizer.step()
+        grad_norm = safe_backward(
+            total_loss, self.optimizer,
+            self.network.parameters(),
+            max_norm=1.0,
+            scheduler=self.scheduler,
+        )
+        self._last_grad_norm = grad_norm
+        
+        # Clamp logit_scale to prevent temperature explosion
+        with torch.no_grad():
+            self.network.logit_scale.clamp_(0, math.log(100))
         
         self._training_steps += 1
         self._total_loss += total_loss.item()
@@ -210,4 +224,7 @@ class BindingNetwork:
             "training_steps": self._training_steps,
             "avg_loss": self._total_loss / max(1, self._training_steps),
             "params": sum(p.numel() for p in self.network.parameters()),
+            "last_grad_norm": round(self._last_grad_norm, 6),
+            "current_lr": round(self.scheduler.get_lr(), 8),
+            "logit_scale": round(float(self.network.logit_scale.exp()), 4),
         }

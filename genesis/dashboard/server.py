@@ -47,6 +47,24 @@ class DashboardServer:
         def network():
             return render_template("network.html")
 
+        @self.app.route('/explorer')
+        def explorer():
+            return render_template("explorer.html")
+
+        @self.app.route('/api/explorer_summary')
+        def explorer_summary():
+            """All networks' stats in one payload for the overview grid."""
+            if not _mind_instance:
+                return jsonify({"error": "Mind not ready"})
+            return jsonify(self._build_explorer_summary(_mind_instance))
+
+        @self.app.route('/api/network_deep/<network_name>')
+        def network_deep(network_name):
+            """Deep introspection of a single network: architecture, weights, gradients."""
+            if not _mind_instance:
+                return jsonify({"error": "Mind not ready"})
+            return jsonify(self._build_network_deep(_mind_instance, network_name))
+
         @self.app.route('/api/camera')
         def camera_feed():
             """MJPEG stream of what Genesis sees through its eyes."""
@@ -83,6 +101,68 @@ class DashboardServer:
             if not _mind_instance:
                 return jsonify({"status": "booting..."})
             return jsonify(self._build_state_payload(_mind_instance))
+
+        # ═══ Diagnostic API Endpoints (Observability Pillar) ═══
+
+        @self.app.route('/api/training_history')
+        def training_history():
+            """Per-network loss history for dashboard loss curve visualization."""
+            if not _mind_instance:
+                return jsonify({})
+            try:
+                history = _mind_instance.subconscious.get_training_history()
+                # Convert to JSON-friendly format
+                result = {}
+                for name, entries in history.items():
+                    result[name] = {
+                        "timestamps": [t for t, _ in entries],
+                        "losses": [l for _, l in entries],
+                        "count": len(entries),
+                    }
+                return jsonify(result)
+            except Exception as e:
+                return jsonify({"error": str(e)})
+
+        @self.app.route('/api/embedding_map')
+        def embedding_map():
+            """2D t-SNE projection of all concept embeddings."""
+            if not _mind_instance:
+                return jsonify({})
+            try:
+                return jsonify(self._build_embedding_map(_mind_instance))
+            except Exception as e:
+                return jsonify({"error": str(e)})
+
+        @self.app.route('/api/binding_accuracy')
+        def binding_accuracy():
+            """Binding consistency: how consistently same concepts produce similar embeddings."""
+            if not _mind_instance:
+                return jsonify({})
+            try:
+                return jsonify(self._compute_binding_accuracy(_mind_instance))
+            except Exception as e:
+                return jsonify({"error": str(e)})
+
+        @self.app.route('/api/replay_stats')
+        def replay_stats():
+            """Histogram of surprise/emotion/drive values in the replay buffer."""
+            if not _mind_instance:
+                return jsonify({})
+            try:
+                return jsonify(self._build_replay_stats(_mind_instance))
+            except Exception as e:
+                return jsonify({"error": str(e)})
+
+        @self.app.route('/api/session_log')
+        def session_log():
+            """Last N interaction events with internal state."""
+            if not _mind_instance:
+                return jsonify([])
+            try:
+                log = getattr(_mind_instance, '_interaction_log', [])
+                return jsonify(list(log)[-200:])
+            except Exception as e:
+                return jsonify({"error": str(e)})
 
     def _generate_camera_frames(self):
         """Yield MJPEG frames from the cached last frame (no competing camera reads)."""
@@ -378,6 +458,340 @@ class DashboardServer:
             state["error"] = str(e)
             
         return state
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Neural Explorer — Deep Introspection API
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _get_network_registry(self, mind) -> dict:
+        """Map of network_name → (module, category, description)."""
+        registry = {}
+        sub = mind.subconscious
+        
+        # Subconscious core networks
+        registry["limbic"] = (sub.limbic_system, "emotional", "Emotional reactions → neurochemistry")
+        registry["binding"] = (sub.binding_network, "cognitive", "Multi-modal concept binding")
+        registry["personality"] = (sub.personality, "cognitive", "GRU stream of consciousness")
+        registry["world_model"] = (sub.world_model, "cognitive", "Next-state prediction")
+        registry["meta_controller"] = (sub.meta_controller, "cognitive", "Attention routing across modules")
+        
+        # Visual cortex (lives on the Eyes sensor)
+        if hasattr(mind, '_eyes') and mind._eyes and hasattr(mind._eyes, '_visual_cortex') and mind._eyes._visual_cortex:
+            registry["visual_cortex"] = (mind._eyes._visual_cortex, "sensory", "Conv autoencoder (pixels → 64-dim)")
+        
+        # Acoustic pipeline
+        if hasattr(mind, 'sensorimotor') and mind.sensorimotor:
+            sm = mind.sensorimotor
+            if hasattr(sm, 'auditory_cortex'):
+                registry["auditory_cortex"] = (sm.auditory_cortex, "acoustic", "Mel spectrogram → embeddings")
+            if hasattr(sm, 'acoustic_brain'):
+                registry["acoustic_lm"] = (sm.acoustic_brain, "acoustic", "Transformer language model")
+            if hasattr(sm, 'vocoder'):
+                registry["vocoder"] = (sm.vocoder, "acoustic", "Neural vocoder → speech")
+            if hasattr(sm, 'vq_codebook'):
+                registry["vq_codebook"] = (sm.vq_codebook, "acoustic", "VQ phoneme discovery (256 codes)")
+        
+        return registry
+
+    def _build_explorer_summary(self, mind) -> dict:
+        """All networks' stats for the overview grid."""
+        summary = {"networks": {}, "system": {}, "curriculum": {}}
+        
+        try:
+            registry = self._get_network_registry(mind)
+            
+            for name, (module, category, description) in registry.items():
+                try:
+                    stats = module.get_stats() if hasattr(module, 'get_stats') else {}
+                    
+                    # Compute health indicator
+                    avg_loss = stats.get("avg_loss", stats.get("avg_surprise", -1))
+                    training_steps = stats.get("training_steps", stats.get("train_steps", 0))
+                    params = stats.get("params", stats.get("total_params", 0))
+                    
+                    if avg_loss < 0:
+                        health = "idle"
+                    elif avg_loss < 0.1:
+                        health = "good"
+                    elif avg_loss < 0.5:
+                        health = "learning"
+                    else:
+                        health = "early"
+                    
+                    summary["networks"][name] = {
+                        "category": category,
+                        "description": description,
+                        "params": params,
+                        "training_steps": training_steps,
+                        "avg_loss": round(float(avg_loss), 6) if avg_loss >= 0 else None,
+                        "health": health,
+                        **{k: v for k, v in stats.items() 
+                           if k not in ("params", "total_params", "training_steps", "train_steps", "avg_loss", "avg_surprise")},
+                    }
+                except Exception as e:
+                    summary["networks"][name] = {"error": str(e), "category": category, "description": description}
+            
+            # Curriculum gates
+            sub = mind.subconscious
+            summary["curriculum"] = {
+                "visual_cortex_loss": round(getattr(sub, '_visual_cortex_loss', 1.0), 6),
+                "binding_gate": getattr(sub, '_binding_gate_open', False),
+                "personality_gate": getattr(sub, '_personality_gate_open', False),
+                "world_model_gate": getattr(sub, '_world_model_gate_open', False),
+            }
+            
+            # System-wide stats
+            summary["system"] = {
+                "total_params": sum(
+                    s.get("params", 0) for s in summary["networks"].values() if isinstance(s.get("params"), (int, float))
+                ),
+                "total_training_steps": sum(
+                    s.get("training_steps", 0) for s in summary["networks"].values() if isinstance(s.get("training_steps"), (int, float))
+                ),
+                "growth_events": mind.neuroplasticity._total_growth_events if hasattr(mind, 'neuroplasticity') else 0,
+                "phase": mind.development.current_phase if hasattr(mind, 'development') else 0,
+                "phase_name": mind.development.current_phase_name if hasattr(mind, 'development') else "Unknown",
+            }
+        except Exception as e:
+            summary["error"] = str(e)
+        
+        return summary
+
+    def _build_network_deep(self, mind, network_name: str) -> dict:
+        """Deep introspection of a single network."""
+        result = {"name": network_name, "layers": [], "weight_stats": {}, "activations": {}}
+        
+        try:
+            registry = self._get_network_registry(mind)
+            if network_name not in registry:
+                return {"error": f"Unknown network: {network_name}", "available": list(registry.keys())}
+            
+            module, category, description = registry[network_name]
+            result["category"] = category
+            result["description"] = description
+            
+            # Get stats
+            if hasattr(module, 'get_stats'):
+                result["stats"] = module.get_stats()
+            
+            # Find the actual nn.Module to inspect
+            net = None
+            if hasattr(module, 'network') and isinstance(module.network, torch.nn.Module):
+                net = module.network
+            elif hasattr(module, 'encoder') and isinstance(module.encoder, torch.nn.Module):
+                # Visual cortex — inspect encoder
+                net = module.encoder
+                result["has_decoder"] = True
+            elif hasattr(module, 'model') and isinstance(module.model, torch.nn.Module):
+                net = module.model
+            elif isinstance(module, torch.nn.Module):
+                net = module
+            
+            if net is not None:
+                # Layer architecture
+                layers = []
+                for name, param in net.named_parameters():
+                    layers.append({
+                        "name": name,
+                        "shape": list(param.shape),
+                        "params": param.numel(),
+                        "requires_grad": param.requires_grad,
+                        "dtype": str(param.dtype),
+                    })
+                result["layers"] = layers
+                
+                # Weight distributions per named module
+                weight_stats = {}
+                for name, param in net.named_parameters():
+                    try:
+                        data = param.detach().cpu().float()
+                        # Compute histogram (20 bins)
+                        hist_values = data.flatten().numpy()
+                        counts, bin_edges = np.histogram(hist_values, bins=20)
+                        
+                        weight_stats[name] = {
+                            "mean": round(float(data.mean()), 6),
+                            "std": round(float(data.std()), 6),
+                            "min": round(float(data.min()), 6),
+                            "max": round(float(data.max()), 6),
+                            "norm": round(float(data.norm()), 4),
+                            "histogram": {
+                                "counts": counts.tolist(),
+                                "edges": [round(float(e), 4) for e in bin_edges.tolist()],
+                            },
+                        }
+                        # Gradient info
+                        if param.grad is not None:
+                            weight_stats[name]["grad_norm"] = round(float(param.grad.detach().cpu().norm()), 6)
+                    except Exception:
+                        pass
+                result["weight_stats"] = weight_stats
+            
+            # Network-specific activations
+            if network_name == "personality":
+                if hasattr(module, '_hidden_state') and module._hidden_state is not None:
+                    result["activations"]["hidden_state"] = self._tensor_to_list(module._hidden_state, max_items=256)
+                result["activations"]["experience_buffer_size"] = len(getattr(module, '_experience_buffer', []))
+            
+            elif network_name == "meta_controller":
+                if hasattr(module, '_avg_weights') and hasattr(module, 'MODULE_NAMES'):
+                    result["activations"]["routing"] = {
+                        name: round(float(module._avg_weights[i]), 4)
+                        for i, name in enumerate(module.MODULE_NAMES)
+                        if i < len(module._avg_weights)
+                    }
+            
+            elif network_name == "vq_codebook":
+                if hasattr(module, '_usage'):
+                    usage = module._usage.tolist()
+                    result["activations"]["codebook_usage"] = usage[:256]
+                    result["activations"]["active_codes"] = sum(1 for u in usage if u > 0)
+                    result["activations"]["total_codes"] = len(usage)
+            
+            elif network_name == "visual_cortex":
+                result["activations"]["frames_seen"] = getattr(module, '_frames_seen', 0)
+                result["activations"]["train_steps"] = getattr(module, '_train_steps', 0)
+                # Also get decoder layer info
+                if hasattr(module, 'decoder') and isinstance(module.decoder, torch.nn.Module):
+                    decoder_layers = []
+                    for name, param in module.decoder.named_parameters():
+                        decoder_layers.append({
+                            "name": f"decoder.{name}",
+                            "shape": list(param.shape),
+                            "params": param.numel(),
+                        })
+                    result["decoder_layers"] = decoder_layers
+        
+        except Exception as e:
+            result["error"] = str(e)
+        
+        return result
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Diagnostic Helpers (Observability Pillar)
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _build_embedding_map(self, mind) -> dict:
+        """Compute 2D t-SNE projection of all concept embeddings."""
+        result = {"points": [], "cached": False}
+        
+        # Check cache
+        now = time.time()
+        if hasattr(self, '_embedding_cache') and self._embedding_cache:
+            cache_age = now - self._embedding_cache.get('timestamp', 0)
+            if cache_age < 30.0:  # 30s cache
+                return self._embedding_cache['data']
+        
+        concepts = mind.semantic_memory.get_all_concepts()
+        embeddings = []
+        labels = []
+        strengths = []
+        
+        for c in concepts:
+            if c.text_embedding and len(c.text_embedding) > 0:
+                word = c.word
+                if not word or '/' in word or len(word) > 30:
+                    continue
+                embeddings.append(c.text_embedding)
+                labels.append(word)
+                strengths.append(getattr(c, 'strength', 1.0))
+        
+        if len(embeddings) < 3:
+            result["error"] = "Need at least 3 concepts for t-SNE"
+            return result
+        
+        try:
+            from sklearn.manifold import TSNE
+            X = np.array(embeddings, dtype=np.float32)
+            perplexity = min(30, max(2, len(embeddings) - 1))
+            tsne = TSNE(n_components=2, perplexity=perplexity, random_state=42, n_iter=300)
+            coords = tsne.fit_transform(X)
+            
+            for i, (label, strength) in enumerate(zip(labels, strengths)):
+                result["points"].append({
+                    "label": label,
+                    "x": round(float(coords[i, 0]), 4),
+                    "y": round(float(coords[i, 1]), 4),
+                    "strength": round(strength, 3),
+                })
+            
+            # Cache result
+            self._embedding_cache = {"timestamp": now, "data": result}
+            
+        except ImportError:
+            result["error"] = "sklearn not available for t-SNE"
+        except Exception as e:
+            result["error"] = str(e)
+        
+        return result
+
+    def _compute_binding_accuracy(self, mind) -> dict:
+        """
+        Binding consistency: for each concept with visual+text pairs,
+        how consistently does the binder produce similar outputs?
+        
+        Runs each concept through the binding network twice and
+        measures cosine similarity of the outputs.
+        """
+        result = {"per_concept": {}, "avg_consistency": 0.0, "total_concepts": 0}
+        
+        concepts = mind.semantic_memory.get_all_concepts()
+        consistencies = []
+        
+        for c in concepts:
+            if c.visual_embedding is None or c.text_embedding is None:
+                continue
+            word = c.word
+            if not word or '/' in word or len(word) > 30:
+                continue
+            
+            try:
+                v = np.array(c.visual_embedding, dtype=np.float32)
+                a = np.array(c.text_embedding, dtype=np.float32)
+                
+                # Bind twice (results should be deterministic but we're checking)
+                binding1 = mind.subconscious.binding_network.bind(v, a)
+                binding2 = mind.subconscious.binding_network.bind(v, a)
+                
+                # Cosine similarity
+                dot = np.dot(binding1, binding2)
+                norm = np.linalg.norm(binding1) * np.linalg.norm(binding2)
+                consistency = float(dot / (norm + 1e-8))
+                
+                consistencies.append(consistency)
+                result["per_concept"][word] = round(consistency, 4)
+            except Exception:
+                pass
+        
+        result["total_concepts"] = len(consistencies)
+        result["avg_consistency"] = round(float(np.mean(consistencies)) if consistencies else 0.0, 4)
+        
+        return result
+
+    def _build_replay_stats(self, mind) -> dict:
+        """Histogram of surprise/emotion/drive values in the replay buffer."""
+        result = {"buffer_size": 0, "histograms": {}}
+        
+        buffer = list(mind.subconscious.replay_buffer)
+        result["buffer_size"] = len(buffer)
+        
+        if not buffer:
+            return result
+        
+        for key in ['surprise', 'emotional_intensity', 'drive_hunger']:
+            values = [exp.get(key, 0) for exp in buffer]
+            if values:
+                arr = np.array(values)
+                counts, edges = np.histogram(arr, bins=15)
+                result["histograms"][key] = {
+                    "counts": counts.tolist(),
+                    "edges": [round(float(e), 4) for e in edges.tolist()],
+                    "mean": round(float(arr.mean()), 4),
+                    "std": round(float(arr.std()), 4),
+                    "max": round(float(arr.max()), 4),
+                }
+        
+        return result
 
     def start(self):
         """Start the Flask server in a background daemon thread."""

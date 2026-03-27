@@ -119,6 +119,29 @@ class AcousticConfig:
 
 
 @dataclass
+class TrainingConfig:
+    """Configuration for training stability and plasticity."""
+    gradient_clip_norm: float = 1.0      # Max gradient norm before clipping
+    lr_warmup_steps: int = 50            # Steps for LR warmup
+    lr_schedule: str = "cosine"          # "cosine" | "constant" | "linear_decay"
+    growth_cooldown_steps: int = 50      # Min concepts between growth events
+    growth_rate: int = 8                 # Neurons added per sqrt(concept) step
+    replay_epochs_per_sleep: int = 3     # Replay passes during deep sleep
+    temporal_consistency_weight: float = 0.01  # Weight for temporal coherence loss
+    curiosity_mode: str = "information_gain"   # "novelty" | "information_gain"
+    simulation_mode: bool = False        # Use synthetic senses instead of real
+
+
+@dataclass
+class ObservabilityConfig:
+    """Configuration for debugging and diagnostics."""
+    log_interactions: bool = True        # Log every interaction with internal state
+    max_interaction_log: int = 500       # Max interaction log entries
+    embedding_cache_sec: float = 30.0    # Cache t-SNE embeddings for N seconds
+    loss_history_size: int = 500         # Max loss history entries per network
+
+
+@dataclass
 class GenesisConfig:
     """Master configuration for the entire Genesis Mind system."""
 
@@ -129,6 +152,8 @@ class GenesisConfig:
     voice: VoiceConfig = field(default_factory=VoiceConfig)
     drives: DrivesConfig = field(default_factory=DrivesConfig)
     acoustic: AcousticConfig = field(default_factory=AcousticConfig)
+    training: TrainingConfig = field(default_factory=TrainingConfig)
+    observability: ObservabilityConfig = field(default_factory=ObservabilityConfig)
 
     # --- Identity ---
     creator_name: str = "Jijo John"

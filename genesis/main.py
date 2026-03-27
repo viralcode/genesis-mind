@@ -205,6 +205,9 @@ class GenesisMind:
         # --- V2: Perception Loop (lazy init) ---
         self._perception_loop = None
 
+        # --- Observability: Interaction Log ---
+        self._interaction_log: deque = deque(maxlen=500)
+
         logger.info("Genesis Mind V4 (Society of Mind + Body) fully initialized")
 
     def _get_eyes(self):
@@ -462,6 +465,9 @@ class GenesisMind:
             parts.append("\n😴")
             sleep_report = self.trigger_sleep()
             parts.append(f"\n{sleep_report}")
+
+        # ═══ Interaction Logging ═══
+        self._log_interaction('teach', word, " ".join(parts), visual_embedding is not None)
 
         return " ".join(parts)
 
@@ -1125,6 +1131,9 @@ class GenesisMind:
                     print(f"    Acoustic LM:       {ab['params']:,} params, {ab['total_sequences_heard']} seqs heard, loss={ab['avg_loss']:.4f}")
                     vo = stats['vocoder']
                     print(f"    Neural Vocoder:    {vo['params']:,} params, {vo['total_syntheses']} syntheses")
+
+                elif command == "eval":
+                    self._run_evaluation_harness()
 
                 elif command == "quit" or command == "exit":
                     print()
