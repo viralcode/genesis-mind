@@ -157,13 +157,21 @@ class DashboardServer:
                 )
 
             # Sensory buffers (co-occurrence state)
-            if hasattr(mind, '_brain') and mind._brain:
-                bd = mind._brain
+            if hasattr(mind, 'daemon') and mind.daemon:
+                bd = mind.daemon
+                now = time.time()
+                
+                v_age = now - getattr(bd, '_recent_visual_time', 0)
+                v_fresh = getattr(bd, '_recent_visual_embedding', None) is not None and v_age < 3.0
+                
+                a_age = now - getattr(bd, '_recent_heard_time', 0)
+                a_fresh = getattr(bd, '_recent_heard_words', []) if a_age < 3.0 else []
+                
                 activations['sensory_buffers'] = {
-                    'visual_fresh': bd._recent_visual_embedding is not None,
-                    'visual_age': round(time.time() - bd._recent_visual_time, 1) if bd._recent_visual_time > 0 else -1,
-                    'heard_words': bd._recent_heard_words[:5],
-                    'heard_age': round(time.time() - bd._recent_heard_time, 1) if bd._recent_heard_time > 0 else -1,
+                    'visual_fresh': v_fresh,
+                    'visual_age': round(v_age, 1) if getattr(bd, '_recent_visual_time', 0) > 0 else -1,
+                    'heard_words': a_fresh[:5],
+                    'heard_age': round(a_age, 1) if getattr(bd, '_recent_heard_time', 0) > 0 else -1,
                 }
 
         except Exception as e:
