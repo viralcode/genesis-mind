@@ -125,6 +125,10 @@ class BrainDaemon:
         self._recent_visual_time = 0.0         # When it was captured
         self._recent_heard_words = []          # Recently recognized words
         self._recent_heard_time = 0.0          # When they were recognized
+        self._recent_audio_active = False      # Any audio activity (including unrecognized)
+        self._recent_audio_time = 0.0          # When last audio was processed
+        self._co_occurrence_active = False     # Whether co-occurrence fired recently
+        self._co_occurrence_time = 0.0         # When co-occurrence last fired
         self._co_occurrence_window = 5.0       # Seconds to consider "simultaneous"
 
         # Configure all brain threads
@@ -637,6 +641,11 @@ class BrainDaemon:
             if not vq_tokens or len(vq_tokens) < 3:
                 return
 
+            # Mark audio as active (any processed audio, not just recognized)
+            import time as _time
+            self._recent_audio_active = True
+            self._recent_audio_time = _time.time()
+
             # Step 2: DTW recognition — match against AcousticWordMemory
             recognized = self.mind.acoustic_word_memory.segment_and_recognize(vq_tokens)
 
@@ -940,7 +949,12 @@ class BrainDaemon:
         )
 
         if not (visual_fresh and auditory_fresh):
+            self._co_occurrence_active = False
             return
+
+        # Co-occurrence detected!
+        self._co_occurrence_active = True
+        self._co_occurrence_time = now
 
         # Co-occurrence detected! Bind what was seen with what was heard.
         visual_emb = self._recent_visual_embedding

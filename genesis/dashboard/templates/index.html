@@ -65,8 +65,9 @@
         .routing-bars { display: flex; gap: 0.5rem; flex-wrap: wrap; }
         .route-bar { flex: 1; min-width: 60px; }
         .route-bar .label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
-        .route-fill-bg { height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
-        .route-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); }
+        .route-fill-bg { height: 14px; background: rgba(255,255,255,0.12); border-radius: 4px; overflow: hidden; position: relative; }
+        .route-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; background: linear-gradient(90deg, #4fc3f7, #7c4dff); min-width: 2px; }
+        .route-pct { position: absolute; right: 4px; top: 0; line-height: 14px; font-size: 0.55rem; color: rgba(255,255,255,0.7); }
 
         /* Header tweaks */
         .app-header h1 span { color: var(--accent-secondary); }
@@ -425,7 +426,8 @@
             for (const [name, weight] of Object.entries(routing)) {
                 const bar = document.createElement('div');
                 bar.className = 'route-bar';
-                bar.innerHTML = `<div class="label">${name}</div><div class="route-fill-bg"><div class="route-fill" style="width:${Math.round(weight * 100)}%"></div></div>`;
+                const pct = Math.round(weight * 100);
+                bar.innerHTML = `<div class="label">${name}</div><div class="route-fill-bg"><div class="route-fill" style="width:${pct}%"></div><span class="route-pct">${pct}%</span></div>`;
                 container.appendChild(bar);
             }
         }
@@ -445,8 +447,8 @@
             const bufAud = document.querySelector('#buf-auditory .value');
             const bufCo = document.querySelector('#buf-co-occur .value');
             if (bufVis) bufVis.textContent = buffers.visual_fresh ? '🟢' : '⚫';
-            if (bufAud) bufAud.textContent = buffers.heard_words && buffers.heard_words.length > 0 ? '🟢' : '⚫';
-            if (bufCo) bufCo.textContent = (buffers.visual_fresh && buffers.heard_words && buffers.heard_words.length > 0) ? '🔥' : '⚫';
+            if (bufAud) bufAud.textContent = buffers.audio_active ? '🟢' : '⚫';
+            if (bufCo) bufCo.textContent = buffers.co_occurrence_active ? '🔥' : '⚫';
         }
 
         function fetchActivations() {

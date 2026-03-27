@@ -172,6 +172,9 @@ class DashboardServer:
                     'visual_age': round(v_age, 1) if getattr(bd, '_recent_visual_time', 0) > 0 else -1,
                     'heard_words': a_fresh[:5],
                     'heard_age': round(a_age, 1) if getattr(bd, '_recent_heard_time', 0) > 0 else -1,
+                    'audio_active': getattr(bd, '_recent_audio_active', False) and (now - getattr(bd, '_recent_audio_time', 0)) < 5.0,
+                    'audio_age': round(now - getattr(bd, '_recent_audio_time', 0), 1) if getattr(bd, '_recent_audio_time', 0) > 0 else -1,
+                    'co_occurrence_active': getattr(bd, '_co_occurrence_active', False) and (now - getattr(bd, '_co_occurrence_time', 0)) < 5.0,
                 }
 
         except Exception as e:
