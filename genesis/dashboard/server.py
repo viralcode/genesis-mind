@@ -157,8 +157,8 @@ class DashboardServer:
                 )
 
             # Sensory buffers (co-occurrence state)
-            if hasattr(mind, 'daemon') and mind.daemon:
-                bd = mind.daemon
+            if hasattr(mind, '_brain') and mind._brain:
+                bd = mind._brain
                 now = time.time()
                 
                 v_age = now - getattr(bd, '_recent_visual_time', 0)
