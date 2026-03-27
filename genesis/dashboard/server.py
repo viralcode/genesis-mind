@@ -65,6 +65,17 @@ class DashboardServer:
                 return jsonify({"error": "Mind not ready"})
             return jsonify(self._build_network_deep(_mind_instance, network_name))
 
+        @self.app.route('/mind')
+        def mind_page():
+            return render_template("mind.html")
+
+        @self.app.route('/api/mind_state')
+        def mind_state():
+            """What's actually inside the mind — concepts, memories, thoughts, emotions."""
+            if not _mind_instance:
+                return jsonify({"error": "Mind not ready"})
+            return jsonify(self._build_mind_state(_mind_instance))
+
         @self.app.route('/api/camera')
         def camera_feed():
             """MJPEG stream of what Genesis sees through its eyes."""
@@ -807,6 +818,229 @@ class DashboardServer:
         )
         self._thread.start()
 
+    # =========================================================================
+    # Mind State Builder — what's actually inside the mind
+    # =========================================================================
+
+    def _build_mind_state(self, mind):
+        """Build a comprehensive view of what's forming inside the mind."""
+        import time as _time
+        state = {
+            "timestamp": _time.time(),
+        }
+
+        # 1. Concepts learned (semantic memory)
+        try:
+            concepts = []
+            if hasattr(mind, 'semantic_memory'):
+                sm = mind.semantic_memory
+                for name, concept in getattr(sm, '_concepts', {}).items():
+                    c = {"name": name}
+                    if hasattr(concept, 'strength'):
+                        c["strength"] = round(concept.strength, 3)
+                    if hasattr(concept, 'embedding') and concept.embedding is not None:
+                        c["has_embedding"] = True
+                        c["embedding_dim"] = len(concept.embedding) if hasattr(concept.embedding, '__len__') else 0
+                    else:
+                        c["has_embedding"] = False
+                    if hasattr(concept, 'associations'):
+                        c["associations"] = list(concept.associations.keys())[:5] if isinstance(concept.associations, dict) else []
+                    if hasattr(concept, 'timestamp'):
+                        c["learned_at"] = str(concept.timestamp)
+                    if hasattr(concept, 'modality'):
+                        c["modality"] = concept.modality
+                    concepts.append(c)
+                concepts.sort(key=lambda x: x.get("strength", 0), reverse=True)
+            state["concepts"] = concepts
+            state["concept_count"] = len(concepts)
+        except Exception as e:
+            state["concepts"] = []
+            state["concept_count"] = 0
+
+        # 2. Working memory — what's currently "in mind"
+        try:
+            wm_items = []
+            if hasattr(mind, 'working_memory'):
+                wm = mind.working_memory
+                if hasattr(wm, '_items'):
+                    for key, item in wm._items.items():
+                        entry = {"key": str(key)}
+                        if hasattr(item, 'content'):
+                            entry["content"] = str(item.content)[:100]
+                        if hasattr(item, 'salience'):
+                            entry["salience"] = round(float(item.salience), 3)
+                        if hasattr(item, 'timestamp'):
+                            entry["age_sec"] = round(_time.time() - item.timestamp, 1)
+                        wm_items.append(entry)
+                    wm_items.sort(key=lambda x: x.get("salience", 0), reverse=True)
+            state["working_memory"] = wm_items
+        except Exception:
+            state["working_memory"] = []
+
+        # 3. Emotional state
+        try:
+            emotions = {}
+            if hasattr(mind, 'emotional_state'):
+                es = mind.emotional_state
+                if hasattr(es, 'get_state'):
+                    emotions = es.get_state()
+                elif hasattr(es, '_dimensions'):
+                    emotions = {dim: round(val, 3) for dim, val in es._dimensions.items()}
+            state["emotions"] = emotions
+        except Exception:
+            state["emotions"] = {}
+
+        # 4. Neurochemistry
+        try:
+            chemicals = {}
+            if hasattr(mind, 'neurochemistry'):
+                nc = mind.neurochemistry
+                for name in ['dopamine', 'cortisol', 'serotonin', 'oxytocin']:
+                    chem = getattr(nc, name, None)
+                    if chem and hasattr(chem, 'level'):
+                        chemicals[name] = round(float(chem.level), 4)
+            state["neurochemistry"] = chemicals
+        except Exception:
+            state["neurochemistry"] = {}
+
+        # 5. Drives — what Genesis wants
+        try:
+            drives = {}
+            if hasattr(mind, 'drives'):
+                ds = mind.drives
+                for attr_name in dir(ds):
+                    drive = getattr(ds, attr_name, None)
+                    if hasattr(drive, 'level') and hasattr(drive, 'name'):
+                        drives[drive.name] = {
+                            "level": round(float(drive.level), 3),
+                            "satisfied": float(drive.level) < 0.3,
+                        }
+            state["drives"] = drives
+        except Exception:
+            state["drives"] = {}
+
+        # 6. Episodic memory — recent experiences
+        try:
+            episodes = []
+            if hasattr(mind, 'episodic_memory'):
+                em = mind.episodic_memory
+                recent = getattr(em, '_episodes', [])
+                for ep in recent[-20:]:  # Last 20
+                    entry = {}
+                    if hasattr(ep, 'summary'):
+                        entry["summary"] = str(ep.summary)[:100]
+                    if hasattr(ep, 'type'):
+                        entry["type"] = str(ep.type)
+                    if hasattr(ep, 'timestamp'):
+                        entry["timestamp"] = str(ep.timestamp)
+                    if hasattr(ep, 'emotional_valence'):
+                        entry["emotion"] = round(float(ep.emotional_valence), 2)
+                    episodes.append(entry)
+                episodes.reverse()  # Newest first
+            state["episodes"] = episodes
+            state["episode_count"] = len(getattr(mind.episodic_memory, '_episodes', []))
+        except Exception:
+            state["episodes"] = []
+            state["episode_count"] = 0
+
+        # 7. Vocabulary — acoustic words learned
+        try:
+            vocab = {}
+            if hasattr(mind, 'acoustic_word_memory'):
+                awm = mind.acoustic_word_memory
+                stats = awm.get_stats()
+                vocab["words"] = stats.get("vocabulary", [])
+                vocab["total_exemplars"] = stats.get("total_exemplars", 0)
+                vocab["recognition_rate"] = round(stats.get("recognition_rate", 0), 3)
+                vocab["total_recognitions"] = stats.get("total_recognitions", 0)
+            state["vocabulary"] = vocab
+        except Exception:
+            state["vocabulary"] = {}
+
+        # 8. Grammar — what language patterns have been heard
+        try:
+            grammar = {}
+            if hasattr(mind, 'grammar'):
+                g = mind.grammar
+                if hasattr(g, 'get_stats'):
+                    gs = g.get_stats()
+                    grammar["words_heard"] = gs.get("words_heard", 0)
+                    grammar["sentences_heard"] = gs.get("sentences_heard", 0)
+                    grammar["mode"] = gs.get("mode", "unknown")
+                    # Top words by frequency
+                    if hasattr(g, '_ngram') and hasattr(g._ngram, 'word_counts'):
+                        sorted_words = sorted(
+                            g._ngram.word_counts.items(),
+                            key=lambda x: x[1], reverse=True
+                        )[:20]
+                        grammar["top_words"] = [
+                            {"word": w, "count": c} for w, c in sorted_words
+                        ]
+            state["grammar"] = grammar
+        except Exception:
+            state["grammar"] = {}
+
+        # 9. Cross-modal bindings
+        try:
+            bindings = []
+            if hasattr(mind, 'joint_attention'):
+                ja = mind.joint_attention
+                if hasattr(ja, '_bindings'):
+                    for b in ja._bindings[-20:]:
+                        entry = {}
+                        if hasattr(b, 'visual_concept'):
+                            entry["visual"] = str(b.visual_concept)
+                        if hasattr(b, 'auditory_word'):
+                            entry["auditory"] = str(b.auditory_word)
+                        if hasattr(b, 'strength'):
+                            entry["strength"] = round(float(b.strength), 3)
+                        bindings.append(entry)
+            state["cross_modal_bindings"] = bindings
+        except Exception:
+            state["cross_modal_bindings"] = []
+
+        # 10. Interaction log — recent interactions
+        try:
+            interactions = []
+            if hasattr(mind, '_interaction_log'):
+                for entry in list(mind._interaction_log)[-30:]:
+                    interactions.append(entry)
+                interactions.reverse()
+            state["interaction_log"] = interactions
+        except Exception:
+            state["interaction_log"] = []
+
+        # 11. Consciousness self-model
+        try:
+            consciousness = {}
+            if hasattr(mind, 'consciousness'):
+                c = mind.consciousness
+                if hasattr(c, 'get_state'):
+                    consciousness = c.get_state()
+                elif hasattr(c, 'self_awareness'):
+                    consciousness["self_awareness"] = round(float(c.self_awareness), 3)
+            state["consciousness"] = consciousness
+        except Exception:
+            state["consciousness"] = {}
+
+        # 12. Development phase
+        try:
+            dev = {}
+            if hasattr(mind, 'development'):
+                d = mind.development
+                if hasattr(d, 'get_state'):
+                    ds = d.get_state()
+                    dev["phase"] = ds.get("phase", 0)
+                    dev["phase_name"] = ds.get("phase_name", "Unknown")
+                    dev["age_hours"] = round(ds.get("age_hours", 0), 1)
+                    dev["milestones"] = ds.get("milestones_achieved", [])
+            state["development"] = dev
+        except Exception:
+            state["development"] = {}
+
+        return state
+
     def stop(self):
         """Stop the dashboard."""
         self._running = False
+

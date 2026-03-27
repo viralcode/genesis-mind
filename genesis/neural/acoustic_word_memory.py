@@ -71,7 +71,7 @@ class AcousticWordMemory:
 
     def __init__(self, storage_path: Path,
                  max_exemplars_per_word: int = 10,
-                 recognition_threshold: float = 0.6,
+                 recognition_threshold: float = 0.35,
                  min_token_length: int = 3):
         self.storage_path = Path(storage_path)
         self.max_exemplars_per_word = max_exemplars_per_word
@@ -142,12 +142,23 @@ class AcousticWordMemory:
     # Recognition — identify a word from VQ tokens
     # =========================================================================
 
+    def _has_diversity(self, vq_tokens: List[int], min_unique: int = 3) -> bool:
+        """
+        Check if a token sequence has enough diversity to be meaningful.
+        
+        A sequence of all-zeros (or all same token) is noise from an
+        untrained VQ codebook, not real speech. Require at least
+        `min_unique` distinct tokens.
+        """
+        return len(set(vq_tokens)) >= min_unique
+
     def recognize(self, vq_tokens: List[int],
-                  top_k: int = 3) -> List[RecognitionResult]:
+                   top_k: int = 3) -> List[RecognitionResult]:
         """
         Match heard VQ tokens against all stored acoustic exemplars.
 
         Uses DTW (Dynamic Time Warping) for time-invariant matching.
+        Rejects monotone sequences (all same token) as noise.
 
         Args:
             vq_tokens: VQ token sequence from heard audio
@@ -162,30 +173,40 @@ class AcousticWordMemory:
         if not self._exemplars:
             return []
 
+        # Reject monotone / low-diversity sequences — these are noise
+        # from an undertrained VQ codebook
+        if not self._has_diversity(vq_tokens, min_unique=3):
+            return []
+
         self._total_recognitions += 1
 
         results = []
         for word, exemplars in self._exemplars.items():
+            # Skip exemplars that are themselves low-diversity (corrupt data)
+            valid_exemplars = [e for e in exemplars if self._has_diversity(e.vq_tokens, min_unique=3)]
+            if not valid_exemplars:
+                continue
+
             # Compare against each exemplar, take the best (minimum distance)
             best_dist = float('inf')
-            for exemplar in exemplars:
+            for exemplar in valid_exemplars:
                 dist = self._dtw_distance(vq_tokens, exemplar.vq_tokens)
                 if dist < best_dist:
                     best_dist = dist
 
             # Normalize distance by sequence length
-            avg_len = (len(vq_tokens) + min(len(e.vq_tokens) for e in exemplars)) / 2
+            avg_len = (len(vq_tokens) + min(len(e.vq_tokens) for e in valid_exemplars)) / 2
             normalized_dist = best_dist / max(avg_len, 1)
 
             # Convert distance to confidence (inverse sigmoid)
-            confidence = 1.0 / (1.0 + np.exp(3.0 * (normalized_dist - self.recognition_threshold)))
+            confidence = 1.0 / (1.0 + np.exp(5.0 * (normalized_dist - self.recognition_threshold)))
 
             results.append(RecognitionResult(
                 word=word,
                 distance=normalized_dist,
                 confidence=confidence,
-                exemplar_count=len(exemplars),
-                is_match=normalized_dist < self.recognition_threshold,
+                exemplar_count=len(valid_exemplars),
+                is_match=normalized_dist < self.recognition_threshold and confidence > 0.5,
             ))
 
         # Sort by distance (best matches first)

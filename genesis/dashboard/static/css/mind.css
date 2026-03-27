@@ -1,0 +1,420 @@
+/* ═══ Mind Page Styles ═══ */
+
+.mind-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 80px 24px 40px;
+}
+
+.mind-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.mind-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #a78bfa, #60a5fa, #34d399);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+}
+
+.mind-meta {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.phase-badge {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.age-label, .concept-count {
+    color: rgba(255,255,255,0.5);
+    font-size: 0.85rem;
+}
+
+/* ═══ Sections ═══ */
+
+.mind-section {
+    margin-bottom: 2rem;
+}
+
+.mind-section h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ═══ Glass Cards / Panels ═══ */
+
+.glass-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    backdrop-filter: blur(10px);
+}
+
+.glass-card h3 {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 0.75rem;
+}
+
+.dual-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    .dual-panel {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ═══ Neurochemistry + Emotion Bars ═══ */
+
+.chem-bars, .emotion-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.bar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.bar-label {
+    width: 90px;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.6);
+    text-transform: capitalize;
+    flex-shrink: 0;
+}
+
+.bar-track {
+    flex: 1;
+    height: 8px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease;
+}
+
+.bar-value {
+    width: 40px;
+    text-align: right;
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.4);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+/* Chemical-specific colors */
+.chem-dopamine .bar-fill { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.chem-cortisol .bar-fill { background: linear-gradient(90deg, #ef4444, #f87171); }
+.chem-serotonin .bar-fill { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.chem-oxytocin .bar-fill { background: linear-gradient(90deg, #ec4899, #f472b6); }
+
+/* ═══ Drives Grid ═══ */
+
+.drives-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem;
+}
+
+.drive-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    transition: border-color 0.3s;
+}
+
+.drive-card.unsatisfied {
+    border-color: rgba(251, 191, 36, 0.3);
+    background: rgba(251, 191, 36, 0.04);
+}
+
+.drive-card.satisfied {
+    border-color: rgba(52, 211, 153, 0.2);
+}
+
+.drive-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 0.4rem;
+    text-transform: capitalize;
+}
+
+.drive-bar {
+    height: 6px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.drive-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+}
+
+.drive-card.unsatisfied .drive-fill {
+    background: linear-gradient(90deg, #fbbf24, #f59e0b);
+}
+
+.drive-card.satisfied .drive-fill {
+    background: linear-gradient(90deg, #34d399, #10b981);
+}
+
+/* ═══ Working Memory ═══ */
+
+.wm-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.wm-item {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.8);
+    position: relative;
+}
+
+.wm-salience {
+    position: absolute;
+    top: -6px;
+    right: -4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    font-size: 0.55rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: white;
+}
+
+.empty-state {
+    color: rgba(255,255,255,0.3);
+    font-size: 0.85rem;
+    font-style: italic;
+    padding: 1rem;
+}
+
+/* ═══ Concept Cloud ═══ */
+
+.concept-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0.5rem 0;
+}
+
+.concept-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    transition: all 0.2s;
+    cursor: default;
+}
+
+.concept-tag:hover {
+    border-color: rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.05);
+}
+
+.concept-tag .strength-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.concept-tag.visual { background: rgba(239, 68, 68, 0.08); color: rgba(252, 165, 165, 0.9); }
+.concept-tag.auditory { background: rgba(34, 197, 94, 0.08); color: rgba(134, 239, 172, 0.9); }
+.concept-tag.taught { background: rgba(59, 130, 246, 0.08); color: rgba(147, 197, 253, 0.9); }
+.concept-tag.default { background: rgba(148, 163, 184, 0.06); color: rgba(203, 213, 225, 0.8); }
+
+/* ═══ Vocabulary ═══ */
+
+.vocab-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.vocab-word {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.vocab-word .word { font-size: 0.85rem; color: rgba(255,255,255,0.8); }
+.vocab-word .count { font-size: 0.75rem; color: rgba(255,255,255,0.4); }
+
+.vocab-stats {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.4);
+}
+
+/* ═══ Grammar ═══ */
+
+.grammar-info .stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.6);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.grammar-info .stat-row .val {
+    color: rgba(255,255,255,0.9);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.top-words {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 0.5rem;
+}
+
+.top-word {
+    background: rgba(52, 211, 153, 0.08);
+    border: 1px solid rgba(52, 211, 153, 0.15);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    color: rgba(167, 243, 208, 0.9);
+}
+
+/* ═══ Bindings ═══ */
+
+.bindings-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.75rem;
+}
+
+.binding-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(168, 85, 247, 0.15);
+    border-radius: 8px;
+    padding: 0.75rem;
+}
+
+.binding-arrow {
+    text-align: center;
+    color: rgba(168, 85, 247, 0.5);
+    font-size: 0.7rem;
+    margin: 4px 0;
+}
+
+.binding-label {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.7);
+}
+
+/* ═══ Episodes ═══ */
+
+.episodes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.episode-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+
+.episode-emoji {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.episode-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.episode-summary {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.7);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.episode-time {
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.3);
+}
+
+/* ═══ Interaction Log ═══ */
+
+.interaction-log {
+    max-height: 250px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.75rem;
+}
+
+.log-entry {
+    color: rgba(255,255,255,0.5);
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.log-entry:hover {
+    background: rgba(255,255,255,0.03);
+}

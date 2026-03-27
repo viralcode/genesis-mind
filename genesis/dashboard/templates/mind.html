@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genesis Mind — What's Inside</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/mind.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="top-nav">
+        <a href="/" class="nav-brand">◈ Genesis</a>
+        <div class="nav-links">
+            <a href="/">Dashboard</a>
+            <a href="/network">Neural</a>
+            <a href="/explorer">Explorer</a>
+            <a href="/mind" class="active">Mind</a>
+        </div>
+    </nav>
+
+    <div class="mind-container">
+        <!-- Header -->
+        <div class="mind-header">
+            <h1>🧠 What's Inside the Mind</h1>
+            <div class="mind-meta" id="mindMeta">
+                <span class="phase-badge" id="phaseBadge">Phase ?</span>
+                <span class="age-label" id="ageLabel">—</span>
+                <span class="concept-count" id="conceptCount">— concepts</span>
+            </div>
+        </div>
+
+        <!-- Emotional Landscape -->
+        <section class="mind-section" id="emotionalSection">
+            <h2>💫 Emotional Landscape</h2>
+            <div class="dual-panel">
+                <div class="panel glass-card">
+                    <h3>Neurochemistry</h3>
+                    <div id="neurochemBars" class="chem-bars"></div>
+                </div>
+                <div class="panel glass-card">
+                    <h3>Emotional Dimensions</h3>
+                    <div id="emotionBars" class="emotion-bars"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Drives -->
+        <section class="mind-section" id="drivesSection">
+            <h2>🎯 What Genesis Wants</h2>
+            <div class="drives-grid" id="drivesGrid"></div>
+        </section>
+
+        <!-- Working Memory -->
+        <section class="mind-section" id="wmSection">
+            <h2>💭 Current Focus (Working Memory)</h2>
+            <div class="wm-items" id="wmItems">
+                <div class="empty-state">Nothing in working memory</div>
+            </div>
+        </section>
+
+        <!-- Concepts -->
+        <section class="mind-section" id="conceptsSection">
+            <h2>🌐 Concepts Learned</h2>
+            <div class="concept-cloud" id="conceptCloud"></div>
+        </section>
+
+        <!-- Vocabulary & Grammar -->
+        <section class="mind-section" id="languageSection">
+            <h2>🗣 Language Acquisition</h2>
+            <div class="dual-panel">
+                <div class="panel glass-card">
+                    <h3>Acoustic Vocabulary</h3>
+                    <div id="vocabPanel" class="vocab-list"></div>
+                </div>
+                <div class="panel glass-card">
+                    <h3>Grammar Patterns</h3>
+                    <div id="grammarPanel" class="grammar-info"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Cross-Modal Bindings -->
+        <section class="mind-section" id="bindingsSection">
+            <h2>🔗 Cross-Modal Bindings</h2>
+            <div class="bindings-list" id="bindingsList"></div>
+        </section>
+
+        <!-- Episodes -->
+        <section class="mind-section" id="episodesSection">
+            <h2>📖 Recent Memories</h2>
+            <div class="episodes-list" id="episodesList"></div>
+        </section>
+
+        <!-- Interaction Log -->
+        <section class="mind-section" id="logSection">
+            <h2>💬 Recent Activity</h2>
+            <div class="interaction-log" id="interactionLog"></div>
+        </section>
+    </div>
+
+    <script src="/static/js/mind.js"></script>
+</body>
+</html>

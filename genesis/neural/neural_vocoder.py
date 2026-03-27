@@ -271,12 +271,25 @@ class NeuralVocoder:
         """
         Play waveform through speakers.
         
-        Uses sounddevice for real-time audio output.
-        Falls back gracefully if sounddevice is not available.
+        Amplifies the output to ensure audibility (neural vocoder output
+        is often very quiet during early training).
         """
         try:
             import sounddevice as sd
-            sd.play(waveform, self.sample_rate, blocking=False)
+            # Amplify — untrained vocoder produces very quiet output
+            peak = np.abs(waveform).max()
+            if peak > 1e-6:
+                # Normalize to 80% of max volume
+                waveform = waveform * (0.8 / peak)
+            else:
+                logger.debug("Waveform is silent (peak=%.2e), skipping playback", peak)
+                return
+            
+            logger.debug(
+                "Playing %d samples (%.2fs, peak=%.3f)",
+                len(waveform), len(waveform) / self.sample_rate, np.abs(waveform).max()
+            )
+            sd.play(waveform.astype(np.float32), self.sample_rate, blocking=False)
         except ImportError:
             logger.warning("sounddevice not available — cannot play audio")
         except Exception as e:
