@@ -186,7 +186,7 @@ class BrainDaemon:
                 # Generate a context-dependent GRU response
                 context_vec = self.mind.proprioception.get_context_vector()
                 result = self.mind.subconscious.process_experience(
-                    clip_embedding=None,
+                    visual_embedding=None,
                     text_embedding=None,
                     context=context_vec,
                     train=False,
@@ -448,7 +448,7 @@ class BrainDaemon:
         # keep the GRU hidden state evolving (stream of consciousness)
         context_vec = self.mind.proprioception.get_context_vector()
         result = self.mind.subconscious.process_experience(
-            clip_embedding=None,
+            visual_embedding=None,
             text_embedding=None,
             context=context_vec,
             train=False,  # Don't train on empty input
@@ -552,7 +552,7 @@ class BrainDaemon:
             # Process through neural cascade (the brain "sees")
             context_vec = self.mind.proprioception.get_context_vector()
             result = self.mind.subconscious.process_experience(
-                clip_embedding=embedding,
+                visual_embedding=embedding,
                 text_embedding=None,
                 context=context_vec,
                 train=True,  # Actually learn from what we see
@@ -671,7 +671,7 @@ class BrainDaemon:
                 # Process through neural cascade
                 context_vec = self.mind.proprioception.get_context_vector()
                 self.mind.subconscious.process_experience(
-                    clip_embedding=None,
+                    visual_embedding=None,
                     text_embedding=None,
                     context=context_vec,
                     train=True,
@@ -860,7 +860,7 @@ class BrainDaemon:
             try:
                 context_vec = mind.proprioception.get_context_vector()
                 result = mind.subconscious.process_experience(
-                    clip_embedding=None,
+                    visual_embedding=None,
                     text_embedding=None,
                     context=context_vec,
                     train=False,

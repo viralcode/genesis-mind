@@ -13,7 +13,7 @@ It manages:
 
 The Subconscious is the "spine" of the Society of Mind.
 All neural processing flows through it before reaching
-the conscious reasoning engine (LLM).
+the conscious reasoning engine.
 """
 
 import logging
@@ -53,10 +53,12 @@ class Subconscious:
         weights_dir.mkdir(parents=True, exist_ok=True)
 
         # Layer 1: Emotional evaluation of raw sensory data
-        self.limbic_system = LimbicSystem(visual_dim=512, auditory_dim=384, lr=0.0005)
+        # visual_dim=64 from VisualCortex, auditory_dim=64 from AuditoryCortex
+        self.limbic_system = LimbicSystem(visual_dim=64, auditory_dim=64, lr=0.0005)
 
         # Layer 2: Associative Bridge
-        self.binding_network = BindingNetwork(visual_dim=512, auditory_dim=384, output_dim=64, lr=0.001)
+        # visual_dim=64, auditory_dim=64 — matches from-scratch cortex output
+        self.binding_network = BindingNetwork(visual_dim=64, auditory_dim=64, output_dim=64, lr=0.001)
 
         # Layer 3: Conscious Executive
         self.personality = PersonalityNetwork(
@@ -100,15 +102,16 @@ class Subconscious:
         logger.info("═══════════════════════════════════════════════════")
 
     def process_experience(self,
-                           clip_embedding: Optional[np.ndarray] = None,
+                           visual_embedding: Optional[np.ndarray] = None,
                            text_embedding: Optional[np.ndarray] = None,
                            context: Optional[np.ndarray] = None,
                            train: bool = True) -> Dict:
         """
-        The full subconscious cascade on top of pre-trained hardware.
+        The full subconscious cascade.
 
-        Takes embeddings from CLIP and Whisper, and flows them through
-        the plastic neural layers.
+        Takes embeddings from the from-scratch VisualCortex (64-dim)
+        and AuditoryCortex/PhonemeEmbedder (64-dim), and flows them
+        through the plastic neural layers.
 
         Returns a dict with:
             - limbic_response: Dict of neurochemical levels
@@ -118,7 +121,7 @@ class Subconscious:
         """
         result = {}
 
-        visual_latent = clip_embedding if clip_embedding is not None else np.zeros(64, dtype=np.float32)
+        visual_latent = visual_embedding if visual_embedding is not None else np.zeros(64, dtype=np.float32)
         auditory_latent = text_embedding if text_embedding is not None else np.zeros(64, dtype=np.float32)
 
         # ─── Meta-Controller: Compute routing weights ──────────

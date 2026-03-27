@@ -368,7 +368,7 @@ class GenesisMind:
         context_vec = self.proprioception.get_context_vector()
         
         neural_result = self.subconscious.process_experience(
-            clip_embedding=visual_tensor,
+            visual_embedding=visual_tensor,
             text_embedding=audio_tensor,
             context=context_vec,
             train=True,

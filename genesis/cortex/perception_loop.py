@@ -10,7 +10,7 @@ This module provides three parallel threads that run continuously:
     │                  PERCEPTION LOOP                        │
     │                                                         │
     │   Thread 1: VISUAL    — Camera every 2s, motion detect  │
-    │   Thread 2: AUDITORY  — Microphone, Whisper transcribe  │
+    │   Thread 2: AUDITORY  — Microphone, AuditoryCortex      │
     │   Thread 3: THOUGHT   — Spontaneous inner monologue     │
     │                                                         │
     │   All threads → PerceptionQueue → Main Consciousness    │

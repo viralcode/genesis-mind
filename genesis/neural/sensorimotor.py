@@ -36,12 +36,11 @@ class SensorimotorLoop:
     """
     The full acoustic neural pipeline — hear, think, speak.
     
-    This replaces ALL text-based processing:
-    - Whisper STT → AuditoryCortex
-    - Ollama LLM  → AcousticBrain (Transformer on audio tokens)
-    - pyttsx3 TTS → NeuralVocoder (Griffin-Lim)
-    
-    Everything learned from scratch.
+    Components (all from scratch, zero pretrained models):
+    - Ear input    → AuditoryCortex (Conv1D mel encoder, ~50K params)
+    - Perception   → VQ Codebook (EMA-based, 256 entries)
+    - Cognition    → AcousticBrain (Transformer on audio tokens)
+    - Output       → NeuralVocoder (Griffin-Lim synthesis)
     """
 
     def __init__(self, weights_dir: Path,
