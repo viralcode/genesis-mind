@@ -145,6 +145,8 @@ class GriffinLim:
         """
         if mel.dim() == 3:
             mel = mel.squeeze(0)
+            
+        mel = mel.cpu()  # Force CPU execution (MPS STFT/ISTFT causes NaN bugs)
 
         # Exp to undo log compression
         mel_linear = torch.exp(mel)
@@ -238,6 +240,13 @@ class NeuralVocoder:
             waveform: numpy array of 16kHz audio
         """
         self.mel_reconstructor.eval()
+        
+        # FORCE CPU EXECUTION: Apple Silicon GPUs (MPS) frequently corrupt 
+        # ConvTranspose1d operations with NaNs during mixed-precision audio generation.
+        self.mel_reconstructor = self.mel_reconstructor.cpu()
+        embeddings = embeddings.cpu()
+        embeddings = torch.nan_to_num(embeddings, nan=0.0)
+        
         with torch.no_grad():
             mel = self.mel_reconstructor(embeddings)  # (1, n_mels, time*4)
 
@@ -267,43 +276,46 @@ class NeuralVocoder:
 
         return loss.item()
 
-    def play(self, waveform: np.ndarray):
+    def play(self, waveform: np.ndarray) -> None:
         """
-        Play waveform through speakers.
-        
-        Amplifies the output to ensure audibility (neural vocoder output
-        is often very quiet during early training).
+        Takes raw waveform from Griffin-Lim and plays it using native OS systems to avoid AUHAL conflicts.
         """
         try:
-            import sounddevice as sd
-            # Stop any currently-playing stream first (prevents AUHAL -50 error)
-            try:
-                sd.stop()
-            except Exception:
-                pass
-            
             # Amplify — untrained vocoder produces very quiet output
             waveform = np.ascontiguousarray(waveform, dtype=np.float32)
             peak = np.abs(waveform).max()
+            
             if peak > 1e-6:
                 # Normalize to 80% of max volume
                 waveform = waveform * (0.8 / peak)
             else:
-                logger.debug("Waveform is silent (peak=%.2e), skipping playback", peak)
+                logger.info("Waveform is silent (peak=%.2e), skipping playback", peak)
                 return
             
             # Clamp to [-1, 1] to avoid audio driver errors
             waveform = np.clip(waveform, -1.0, 1.0)
             
-            logger.debug(
+            logger.info(
                 "Playing %d samples (%.2fs, peak=%.3f)",
                 len(waveform), len(waveform) / self.sample_rate, np.abs(waveform).max()
             )
-            sd.play(waveform, self.sample_rate, blocking=False)
-        except ImportError:
-            logger.warning("sounddevice not available — cannot play audio")
+            
+            # We use macOS native 'afplay' because 'sounddevice' (PortAudio) throws AUHAL -50 
+            # errors when trying to output 16kHz audio while the mic is capturing 16kHz audio on another thread.
+            import scipy.io.wavfile as wavfile
+            import os
+            import subprocess
+            import tempfile
+            
+            # Save to temporary wav file
+            out_file = os.path.join(tempfile.gettempdir(), "genesis_voice_out.wav")
+            wavfile.write(out_file, self.sample_rate, waveform)
+            
+            # Play securely in background using Apple's afplay subsystem
+            subprocess.Popen(["afplay", out_file])
+            
         except Exception as e:
-            logger.debug("Audio playback issue: %s", e)
+            logger.error("Audio playback issue: %s", e)
 
     def get_params(self) -> int:
         return sum(p.numel() for p in self.mel_reconstructor.parameters())

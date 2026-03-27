@@ -127,7 +127,7 @@ class Voice:
             try:
                 if self._sensorimotor:
                     waveform, tokens = self._sensorimotor.generate_spontaneous(
-                        max_tokens=15, temperature=0.9
+                        max_tokens=40, temperature=0.9
                     )
                     if len(waveform) > 800:
                         self._sensorimotor.vocoder.play(waveform)
