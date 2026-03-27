@@ -233,11 +233,15 @@ class MetaController:
 
     def load_weights(self, path: Path):
         if path.exists():
-            checkpoint = torch.load(path, map_location='cpu', weights_only=False)
-            self.network.load_state_dict(checkpoint['state_dict'])
-            self._avg_weights = checkpoint.get('avg_weights', self._avg_weights)
-            self._total_routes = checkpoint.get('total_routes', 0)
-            logger.info("Meta-controller loaded (%d prior routes)", self._total_routes)
+            try:
+                checkpoint = torch.load(path, map_location='cpu', weights_only=False)
+                self.network.load_state_dict(checkpoint['state_dict'])
+                self._avg_weights = checkpoint.get('avg_weights', self._avg_weights)
+                self._total_routes = checkpoint.get('total_routes', 0)
+                logger.info("Meta-controller loaded (%d prior routes)", self._total_routes)
+            except RuntimeError as e:
+                logger.warning("Meta-controller weights incompatible (architecture changed), reinitializing: %s", e)
+                path.unlink(missing_ok=True)
 
     def get_stats(self) -> Dict:
         personality = self.get_routing_personality()

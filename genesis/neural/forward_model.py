@@ -118,11 +118,15 @@ class WorldModel:
 
     def load_weights(self, path: Path):
         if path.exists():
-            checkpoint = torch.load(path, map_location='cpu', weights_only=False)
-            self.network.load_state_dict(checkpoint['state_dict'])
-            self._predictions_made = checkpoint.get('predictions', 0)
-            self._total_loss = checkpoint.get('loss', 0.0)
-            logger.info("World model loaded (%d prior predictions)", self._predictions_made)
+            try:
+                checkpoint = torch.load(path, map_location='cpu', weights_only=False)
+                self.network.load_state_dict(checkpoint['state_dict'])
+                self._predictions_made = checkpoint.get('predictions', 0)
+                self._total_loss = checkpoint.get('loss', 0.0)
+                logger.info("World model loaded (%d prior predictions)", self._predictions_made)
+            except RuntimeError as e:
+                logger.warning("World model weights incompatible, reinitializing: %s", e)
+                path.unlink(missing_ok=True)
 
     def get_stats(self) -> dict:
         return {

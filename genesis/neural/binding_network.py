@@ -9,7 +9,7 @@ them into a single cross-modal concept.
 This module is a small MLP that learns to create unified concept
 embeddings from separate visual and auditory latent vectors.
 
-    Input:  visual_latent (64-dim) ⊕ auditory_latent (32-dim) = 96-dim
+    Input:  visual_latent (64-dim) ⊕ auditory_latent (64-dim) = 128-dim
     Output: unified concept embedding (64-dim)
 
 The key insight: this network learns which visual features
@@ -38,7 +38,7 @@ class CrossModalBinder(nn.Module):
     matching pairs together and push mismatched pairs apart in a shared latent space.
     """
 
-    def __init__(self, visual_dim: int = 512, auditory_dim: int = 384,
+    def __init__(self, visual_dim: int = 64, auditory_dim: int = 64,
                  output_dim: int = 64, hidden_dim: int = 128):
         super().__init__()
         
@@ -82,7 +82,7 @@ class BindingNetwork:
     dissimilar embeddings.
     """
 
-    def __init__(self, visual_dim: int = 512, auditory_dim: int = 384,
+    def __init__(self, visual_dim: int = 64, auditory_dim: int = 64,
                  output_dim: int = 64, lr: float = 0.001):
         self.visual_dim = visual_dim
         self.auditory_dim = auditory_dim
@@ -191,12 +191,16 @@ class BindingNetwork:
 
     def load_weights(self, path: Path):
         if path.exists():
-            checkpoint = torch.load(path, map_location='cpu', weights_only=False)
-            self.network.load_state_dict(checkpoint['state_dict'])
-            self._bindings_created = checkpoint.get('bindings', 0)
-            self._training_steps = checkpoint.get('steps', 0)
-            self._total_loss = checkpoint.get('loss', 0.0)
-            logger.info("Binding network loaded (%d prior bindings)", self._bindings_created)
+            try:
+                checkpoint = torch.load(path, map_location='cpu', weights_only=False)
+                self.network.load_state_dict(checkpoint['state_dict'])
+                self._bindings_created = checkpoint.get('bindings', 0)
+                self._training_steps = checkpoint.get('steps', 0)
+                self._total_loss = checkpoint.get('loss', 0.0)
+                logger.info("Binding network loaded (%d prior bindings)", self._bindings_created)
+            except RuntimeError as e:
+                logger.warning("Binding weights incompatible (architecture changed), reinitializing: %s", e)
+                path.unlink(missing_ok=True)
 
     def get_stats(self) -> dict:
         return {

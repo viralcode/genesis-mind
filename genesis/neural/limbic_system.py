@@ -8,7 +8,7 @@ the amygdala has already fired a chemical response.
 This module is a small MLP that learns to map raw sensory features
 directly to neurochemical responses — BEFORE conscious processing.
 
-    Input:  Concatenated visual (64-dim) + auditory (32-dim) features = 96-dim
+    Input:  Concatenated visual (64-dim) + auditory (64-dim) features = 128-dim
     Output: 4-dim neurochemical response (dopamine, cortisol, serotonin, oxytocin)
 
 Training:
@@ -74,7 +74,7 @@ class LimbicSystem:
     If it sees a snake, it spikes cortisol instantly.
     """
 
-    def __init__(self, visual_dim: int = 512, auditory_dim: int = 384,
+    def __init__(self, visual_dim: int = 64, auditory_dim: int = 64,
                  hidden_dim: int = 64, lr: float = 0.0005):
         self.visual_dim = visual_dim
         self.auditory_dim = auditory_dim
@@ -188,12 +188,16 @@ class LimbicSystem:
 
     def load_weights(self, path: Path):
         if path.exists():
-            checkpoint = torch.load(path, map_location='cpu', weights_only=False)
-            self.network.load_state_dict(checkpoint['state_dict'])
-            self._reactions = checkpoint.get('reactions', 0)
-            self._training_steps = checkpoint.get('training_steps', 0)
-            self._total_loss = checkpoint.get('total_loss', 0.0)
-            logger.info("Limbic system loaded (%d prior reactions)", self._reactions)
+            try:
+                checkpoint = torch.load(path, map_location='cpu', weights_only=False)
+                self.network.load_state_dict(checkpoint['state_dict'])
+                self._reactions = checkpoint.get('reactions', 0)
+                self._training_steps = checkpoint.get('training_steps', 0)
+                self._total_loss = checkpoint.get('total_loss', 0.0)
+                logger.info("Limbic system loaded (%d prior reactions)", self._reactions)
+            except RuntimeError as e:
+                logger.warning("Limbic weights incompatible (architecture changed), reinitializing: %s", e)
+                path.unlink(missing_ok=True)
 
     def get_stats(self) -> dict:
         return {
