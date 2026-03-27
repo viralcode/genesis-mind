@@ -62,6 +62,22 @@ class DashboardServer:
                 return jsonify({})
             return jsonify(self._build_neural_activations(_mind_instance))
             
+        @self.app.route('/api/debug_camera')
+        def debug_camera():
+            """Return stats about the current camera frame."""
+            if not _mind_instance or not _mind_instance._eyes:
+                return jsonify({"error": "No eyes"})
+            frame = getattr(_mind_instance._eyes, '_last_frame_full', None)
+            if frame is None:
+                return jsonify({"error": "No frame"})
+            return jsonify({
+                "shape": frame.shape,
+                "dtype": str(frame.dtype),
+                "min": float(frame.min()),
+                "max": float(frame.max()),
+                "mean": float(frame.mean())
+            })
+
         @self.app.route('/api/state')
         def state():
             if not _mind_instance:
@@ -77,13 +93,22 @@ class DashboardServer:
                 if _mind_instance and _mind_instance._eyes:
                     eyes = _mind_instance._eyes
                     # Prefer full-res frame for dashboard, fallback to 64x64 cortex input
-                    frame = getattr(eyes, '_last_frame_full', None) or getattr(eyes, '_last_frame', None)
+                    frame = getattr(eyes, '_last_frame_full', None)
+                    if frame is None:
+                        frame = getattr(eyes, '_last_frame', None)
                     if frame is not None:
                         _, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
                         yield (b'--frame\r\n'
                                b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
-            except Exception:
-                pass
+                    else:
+                        # Yield a blank placeholder frame to keep stream alive
+                        blank = np.zeros((240, 320, 3), dtype=np.uint8)
+                        cv2.putText(blank, "Awaiting vision daemon...", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+                        _, jpeg = cv2.imencode('.jpg', blank)
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+            except Exception as e:
+                logger.error("Camera stream error: %s", e)
             time.sleep(0.5)  # ~2 FPS to match vision thread
 
     def _build_neural_activations(self, mind) -> dict:
@@ -115,10 +140,12 @@ class DashboardServer:
 
             # VQ codebook usage heatmap
             if hasattr(mind, 'sensorimotor') and mind.sensorimotor:
-                vq = mind.sensorimotor.codebook
-                if hasattr(vq, '_usage'):
-                    usage = vq._usage.tolist()
-                    activations['vq_usage'] = usage[:256]
+                # In V7, the codebook is within auditory_cortex (AcousticWordMemory)
+                if hasattr(mind.sensorimotor, 'auditory_cortex') and hasattr(mind.sensorimotor.auditory_cortex, 'codebook'):
+                    vq = mind.sensorimotor.auditory_cortex.codebook
+                    if hasattr(vq, '_usage'):
+                        usage = vq._usage.tolist()
+                        activations['vq_usage'] = usage[:256]
 
             # Growth stats
             activations['total_params'] = mind.subconscious.get_total_params()
