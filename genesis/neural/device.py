@@ -128,9 +128,16 @@ def try_compile(module: torch.nn.Module, name: str = "") -> torch.nn.Module:
     Attempt to torch.compile() a module for free speedup.
     Falls back gracefully if compilation fails (e.g. unsupported ops).
     
+    DISABLED on MPS: torch.compile + MPS causes SEGV under concurrent
+    access from multiple threads (camera + game + auditory).
+    
     Stores original module in external registry (NOT as attribute) to avoid
     nn.Module child registration which causes state_dict recursion.
     """
+    if DEVICE.type == "mps":
+        logger.info("⚡ Skipping torch.compile() for %s (MPS stability)",
+                     name or module.__class__.__name__)
+        return module
     try:
         compiled = torch.compile(module, mode="reduce-overhead")
         # Store in external registry — NOT as module attribute

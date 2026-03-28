@@ -176,6 +176,17 @@ class BrainDaemon:
         self._visual_analyzer = VisualStimulusAnalyzer(history_size=30)
         self._last_saliency = {}               # Latest saliency signals for dashboard
 
+        # ---- Acoustic Pattern Discovery (Saffran 1996) ----
+        # Statistical word discovery from VQ token streams.
+        # Genesis learns word boundaries from frequency, NOT from teaching.
+        from genesis.neural.pattern_discovery import FrequentPatternDetector
+        self._pattern_detector = FrequentPatternDetector(
+            min_pattern_length=3,
+            max_pattern_length=15,
+            discovery_threshold=5,
+            max_patterns=200,
+        )
+
         # Configure all brain threads
         self._setup_threads()
 
@@ -705,18 +716,46 @@ class BrainDaemon:
                 self._emit(f"👁 {self._phase_say('curiosity')}", "🤔")
                 self.mind.neurochemistry.dopamine.spike(0.05)
                 
-                # Unsupervised Visual Discovery
+                # ═══ VISUAL CATEGORY CLUSTERING ═══
+                # Before creating a new concept, check if this looks like
+                # something we've already seen. If so, STRENGTHEN the existing
+                # concept instead of creating a duplicate.
                 concept_count = self.mind.semantic_memory.count()
                 if concept_count < 200:
-                    new_word = f"proto_vision_{concept_count + 1}"
-                    self.mind.semantic_memory.learn_concept(
-                        word=new_word,
-                        visual_embedding=embedding.tolist(),
-                        text_embedding=None,
-                        context="Autonomously discovered visual concept",
-                        description="A completely novel object seen by the camera"
-                    )
-                    self._emit(f"Autonomously learned new sight: '{new_word}'", "👶")
+                    # Check similarity against existing proto_vision concepts
+                    best_match = None
+                    best_sim = 0.0
+                    for concept_name, concept_emb in known.items():
+                        if not concept_name.startswith("proto_vision"):
+                            continue
+                        emb_a = np.array(embedding, dtype=np.float32).flatten()
+                        emb_b = np.array(concept_emb, dtype=np.float32).flatten()
+                        n1, n2 = np.linalg.norm(emb_a), np.linalg.norm(emb_b)
+                        sim = float(np.dot(emb_a, emb_b) / (n1 * n2)) if n1 > 0 and n2 > 0 else 0.0
+                        if sim > best_sim:
+                            best_sim = sim
+                            best_match = concept_name
+
+                    if best_match and best_sim > 0.7:
+                        # Similar to existing concept — strengthen it
+                        existing = self.mind.semantic_memory.recall_concept(best_match)
+                        if existing and hasattr(existing, 'strength'):
+                            existing.strength = min(1.0, existing.strength + 0.15)
+                        self._emit(
+                            f"👁 Recognized familiar sight: '{best_match}' (sim={best_sim:.2f})",
+                            "🧠"
+                        )
+                    else:
+                        # Truly novel — create new concept
+                        new_word = f"proto_vision_{concept_count + 1}"
+                        self.mind.semantic_memory.learn_concept(
+                            word=new_word,
+                            visual_embedding=embedding.tolist(),
+                            text_embedding=None,
+                            context="Autonomously discovered visual concept",
+                            description="A completely novel object seen by the camera"
+                        )
+                        self._emit(f"Autonomously learned new sight: '{new_word}'", "👶")
 
             elif surprise > 0.3:
                 self._emit(self._phase_say("wonder"), "👁")
@@ -834,24 +873,6 @@ class BrainDaemon:
 
             else:
                 # Unknown sound — no words recognized
-                # Unsupervised Acoustic Discovery
-                # If we hear a consistent sound burst we don't recognize, store it autonomously.
-                if 5 <= len(vq_tokens) <= 30:
-                    stats = self.mind.acoustic_word_memory.get_stats()
-                    vocab_size = stats.get("words", 0)
-                    
-                    # Prevent runaway vocabulary explosion from constant static noise
-                    if vocab_size < 200:
-                        from datetime import datetime
-                        new_word = f"proto_sound_{vocab_size + 1}"
-                        self.mind.acoustic_word_memory.store_exemplar(
-                            word=new_word,
-                            vq_tokens=vq_tokens,
-                            timestamp=datetime.now().isoformat()
-                        )
-                        self._emit(f"Autonomously learned new sound: '{new_word}'", "👶")
-                        self.mind.drives.curiosity_hunger.satisfy(0.1)
-
                 # This is still a learning signal (novel acoustic data)
                 token_str = "-".join(str(t) for t in vq_tokens[:8])
                 logger.debug("[auditory] Unrecognized: [%s...] (%d tokens)", token_str, len(vq_tokens))
@@ -859,6 +880,38 @@ class BrainDaemon:
                 # Curiosity spike for unknown sounds (if energetic enough)
                 if result.energy > 0.02:
                     self.mind.neurochemistry.cortisol.spike(0.01)  # Mild stress from unknown
+
+            # ═══ STATISTICAL WORD DISCOVERY (Saffran 1996) ═══
+            # Feed ALL heard VQ tokens to the pattern detector,
+            # regardless of whether DTW recognized them.
+            # This builds word boundaries from transitional probabilities.
+            try:
+                # Update VQ utilization on acoustic word memory
+                vq_stats = self.mind.sensorimotor.vq_codebook.get_stats()
+                vq_util = vq_stats.get('codebook_utilization', 0.05)
+                self.mind.acoustic_word_memory.set_vq_utilization(vq_util)
+
+                discoveries = self._pattern_detector.observe(vq_tokens)
+                for name, pattern_tokens in discoveries:
+                    # Auto-store discovered acoustic patterns as vocabulary!
+                    from datetime import datetime
+                    self.mind.acoustic_word_memory.store_exemplar(
+                        word=name,
+                        vq_tokens=pattern_tokens,
+                        timestamp=datetime.now().isoformat(),
+                    )
+                    self._emit(
+                        f"🔊 Discovered acoustic pattern: '{name}' ({len(pattern_tokens)} tokens, heard 5+ times)",
+                        "👶"
+                    )
+                    self.mind.neurochemistry.dopamine.spike(0.1)  # Reward for discovery
+                    self.mind.drives.curiosity_hunger.satisfy(0.15)
+                    logger.info(
+                        "[auditory] Statistical discovery: '%s' stored as vocabulary (%d tokens)",
+                        name, len(pattern_tokens),
+                    )
+            except Exception as e:
+                logger.debug("[auditory] Pattern discovery error: %s", e)
 
         except Exception as e:
             logger.debug("[auditory] Mic not available: %s", e)

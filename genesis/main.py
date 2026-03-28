@@ -1083,6 +1083,8 @@ class GenesisMind:
         print("    neural-speak                    -- Generate and play neural audio")
         print("    neural-stats                    -- Show acoustic pipeline stats")
         print("    sleep                           -- Consolidate memories (4-phase)")
+        print("    play [N]                        -- Play GridWorld treasure hunt (N episodes)")
+        print("    pong                            -- Play Pong in browser (neural paddle)")
         print("    introspect                      -- Self-reflection")
         print("    quit                            -- Shut down")
         print()
@@ -1274,6 +1276,25 @@ class GenesisMind:
 
                 elif command == "eval":
                     self._run_evaluation_harness()
+
+                elif command == "play":
+                    n_episodes = 20
+                    if args:
+                        try:
+                            n_episodes = int(args)
+                        except ValueError:
+                            pass
+                    from genesis.games.trainer import GameTrainer
+                    trainer = GameTrainer(self)
+                    summary = trainer.train(n_episodes=n_episodes, render_every=5)
+                    # Store trainer for potential re-use
+                    self._game_trainer = trainer
+
+                elif command == "pong":
+                    from genesis.games.pong_trainer import PongTrainer
+                    pong = PongTrainer(self, port=5051)
+                    pong.start(open_browser=True)
+                    self._pong_trainer = pong
 
                 elif command == "quit" or command == "exit":
                     print()

@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GENESIS PONG — Neural Arcade</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #050508;
+            color: #fff;
+            font-family: 'Orbitron', monospace;
+            overflow-y: auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 0;
+        }
+
+        /* CRT scanline overlay */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.08) 2px,
+                rgba(0, 0, 0, 0.08) 4px
+            );
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 16px;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 900;
+            letter-spacing: 8px;
+            background: linear-gradient(135deg, #00ff88, #00ccff, #8800ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: none;
+            filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.3));
+        }
+
+        .header .subtitle {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: #445;
+            letter-spacing: 4px;
+            margin-top: 4px;
+        }
+
+        .game-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        /* Side panels */
+        .side-panel {
+            width: 180px;
+            padding: 12px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+        }
+
+        .side-panel h3 {
+            font-family: 'Orbitron', monospace;
+            font-size: 10px;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            color: #00ff88;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+        }
+
+        .side-panel.opponent h3 { color: #ff4466; text-shadow: 0 0 10px rgba(255, 68, 102, 0.4); }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            color: #667;
+        }
+        .stat-row .val { color: #aab; }
+
+        .bar-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 3px;
+            margin: 3px 0 8px 0;
+            overflow: hidden;
+        }
+
+        .bar {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .bar.dopamine { background: linear-gradient(90deg, #00cc66, #00ff88); box-shadow: 0 0 8px rgba(0, 255, 136, 0.4); }
+        .bar.cortisol { background: linear-gradient(90deg, #cc4400, #ff6644); box-shadow: 0 0 8px rgba(255, 68, 102, 0.4); }
+        .bar.serotonin { background: linear-gradient(90deg, #0066cc, #00ccff); box-shadow: 0 0 8px rgba(0, 204, 255, 0.4); }
+
+        .action-display {
+            text-align: center;
+            padding: 8px;
+            margin-top: 8px;
+            background: rgba(0, 255, 136, 0.05);
+            border: 1px solid rgba(0, 255, 136, 0.15);
+            border-radius: 8px;
+            font-size: 18px;
+        }
+
+        /* Canvas */
+        canvas#pong {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+            box-shadow:
+                0 0 40px rgba(0, 255, 136, 0.05),
+                inset 0 0 80px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Score */
+        .scoreboard {
+            display: flex;
+            justify-content: center;
+            gap: 80px;
+            margin-top: 16px;
+            font-size: 14px;
+            letter-spacing: 3px;
+        }
+
+        .score-item { text-align: center; }
+
+        .score-item .label {
+            font-size: 9px;
+            color: #445;
+            letter-spacing: 3px;
+            margin-bottom: 4px;
+        }
+
+        .score-item .score {
+            font-size: 48px;
+            font-weight: 900;
+        }
+
+        .score-item.genesis .score {
+            color: #00ff88;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+        }
+
+        .score-item.opponent .score {
+            color: #ff4466;
+            text-shadow: 0 0 20px rgba(255, 68, 102, 0.6);
+        }
+
+        .status-bar {
+            margin-top: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: #334;
+            text-align: center;
+        }
+
+        .status-bar .connected { color: #00ff88; }
+        .status-bar .disconnected { color: #ff4466; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .thinking { animation: pulse 0.5s ease-in-out infinite; }
+
+        /* ═══ GENESIS MIND'S EYE ═══ */
+        /* ═══ GENESIS FIRST-PERSON VISION ═══ */
+        .genesis-vision-wrap {
+            width: 100%;
+            margin-bottom: 16px;
+        }
+
+        .genesis-vision-wrap h4 {
+            font-size: 9px;
+            letter-spacing: 2px;
+            color: #556;
+            margin-bottom: 10px;
+        }
+
+        .genesis-vision-wrap h4 .icon { margin-right: 6px; }
+
+        canvas#genesis-vision {
+            width: 100%;
+            height: 260px;
+            border-radius: 8px;
+            background: #000;
+            border: 1px solid rgba(0, 255, 136, 0.1);
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.03), inset 0 0 60px rgba(0, 0, 0, 0.8);
+        }
+
+        .vision-legend {
+            display: flex;
+            gap: 16px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .vision-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8px;
+            color: #445;
+        }
+
+        .vision-legend-item .swatch {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+        }
+
+        .minds-eye {
+            width: 960px;
+            margin-top: 24px;
+            padding: 16px 20px;
+            background: rgba(255,255,255,0.015);
+            border: 1px solid rgba(0, 255, 136, 0.08);
+            border-radius: 16px;
+            backdrop-filter: blur(4px);
+        }
+
+        .minds-eye-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .minds-eye-header h2 {
+            font-size: 12px;
+            letter-spacing: 3px;
+            color: #8800ff;
+            text-shadow: 0 0 15px rgba(136, 0, 255, 0.5);
+        }
+
+        .minds-eye-header .subtitle-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            color: #445;
+            background: rgba(136, 0, 255, 0.08);
+            padding: 3px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(136, 0, 255, 0.15);
+        }
+
+        .minds-eye-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .minds-eye-panel {
+            background: rgba(0,0,0, 0.3);
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: 10px;
+            padding: 12px;
+        }
+
+        .minds-eye-panel h4 {
+            font-size: 9px;
+            letter-spacing: 2px;
+            color: #556;
+            margin-bottom: 10px;
+        }
+
+        .minds-eye-panel h4 .icon { margin-right: 6px; }
+
+        /* Embedding canvas */
+        canvas#embedding-viz {
+            width: 100%;
+            height: 100px;
+            border-radius: 6px;
+            background: rgba(0,0,0,0.4);
+        }
+
+        /* Trajectory canvas */
+        canvas#trajectory-viz {
+            width: 100%;
+            height: 100px;
+            border-radius: 6px;
+            background: rgba(0,0,0,0.4);
+        }
+
+        /* Thought log */
+        .thought-log {
+            height: 100px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            line-height: 1.6;
+            color: #556;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(136,0,255,0.2) transparent;
+        }
+
+        .thought-log::-webkit-scrollbar { width: 4px; }
+        .thought-log::-webkit-scrollbar-track { background: transparent; }
+        .thought-log::-webkit-scrollbar-thumb { background: rgba(136,0,255,0.3); border-radius: 2px; }
+
+        .thought-entry {
+            padding: 2px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.02);
+        }
+
+        .thought-entry .time { color: #334; }
+        .thought-entry .action-up { color: #00ff88; }
+        .thought-entry .action-down { color: #00ccff; }
+        .thought-entry .action-stay { color: #667; }
+        .thought-entry .score-good { color: #00ff88; }
+        .thought-entry .score-bad { color: #ff4466; }
+        .thought-entry .rally-flow { color: #8800ff; }
+
+        /* Emotional state */
+        .emotional-state {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .emotion-chip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(0,0,0,0.3);
+            transition: all 0.5s ease;
+        }
+
+        .emotion-chip .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .emotion-chip.stress .dot { background: #ff4466; box-shadow: 0 0 6px #ff4466; }
+        .emotion-chip.calm .dot { background: #00ccff; box-shadow: 0 0 6px #00ccff; }
+        .emotion-chip.happy .dot { background: #00ff88; box-shadow: 0 0 6px #00ff88; }
+        .emotion-chip.focused .dot { background: #8800ff; box-shadow: 0 0 6px #8800ff; }
+        .emotion-chip.excited .dot { background: #ffaa00; box-shadow: 0 0 6px #ffaa00; }
+
+        .emotion-chip .val {
+            color: #aab;
+            min-width: 28px;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>GENESIS PONG</h1>
+        <div class="subtitle">NEURAL ARCADE — SUBCONSCIOUS PLAYS</div>
+    </div>
+
+    <div class="game-container">
+        <!-- Genesis brain panel -->
+        <div class="side-panel genesis">
+            <h3>⚡ GENESIS</h3>
+            <div class="stat-row"><span>DOPAMINE</span><span class="val" id="dopamine-val">0.50</span></div>
+            <div class="bar-container"><div class="bar dopamine" id="dopamine-bar" style="width: 50%"></div></div>
+
+            <div class="stat-row"><span>CORTISOL</span><span class="val" id="cortisol-val">0.20</span></div>
+            <div class="bar-container"><div class="bar cortisol" id="cortisol-bar" style="width: 20%"></div></div>
+
+            <div class="stat-row"><span>SEROTONIN</span><span class="val" id="serotonin-val">0.50</span></div>
+            <div class="bar-container"><div class="bar serotonin" id="serotonin-bar" style="width: 50%"></div></div>
+
+            <div class="stat-row"><span>SURPRISE</span><span class="val" id="surprise-val">0.00</span></div>
+            <div class="stat-row"><span>DECISIONS</span><span class="val" id="decisions-val">0</span></div>
+
+            <div class="action-display" id="action-display">⏸</div>
+
+            <div style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(0,255,136,0.1)">
+                <div style="font-size:7px; letter-spacing:2px; color:#556; margin-bottom:6px">🧠 REINFORCEMENT LEARNING</div>
+                <div class="stat-row"><span>EPISODES</span><span class="val" id="rl-episodes-val" style="color:#00ff88">0</span></div>
+                <div class="stat-row"><span>⬆ UP</span><span class="val" id="prob-up-val">33%</span></div>
+                <div class="bar-container"><div class="bar" id="prob-up-bar" style="width:33%; background:#00ccff"></div></div>
+                <div class="stat-row"><span>⏸ STAY</span><span class="val" id="prob-stay-val">34%</span></div>
+                <div class="bar-container"><div class="bar" id="prob-stay-bar" style="width:34%; background:#8800ff"></div></div>
+                <div class="stat-row"><span>⬇ DOWN</span><span class="val" id="prob-down-val">33%</span></div>
+                <div class="bar-container"><div class="bar" id="prob-down-bar" style="width:33%; background:#00ff88"></div></div>
+                <div class="stat-row" style="margin-top:4px"><span>ENTROPY</span><span class="val" id="rl-entropy-val">1.10</span></div>
+                <div class="stat-row"><span>AVG RETURN</span><span class="val" id="rl-return-val">0.00</span></div>
+                <div class="stat-row"><span>POLICY LOSS</span><span class="val" id="rl-ploss-val">—</span></div>
+            </div>
+        </div>
+
+        <canvas id="pong" width="700" height="500"></canvas>
+
+        <!-- Opponent panel -->
+        <div class="side-panel opponent">
+            <h3>🎮 CPU</h3>
+            <div class="stat-row"><span>DIFFICULTY</span><span class="val">MEDIUM</span></div>
+            <div class="stat-row"><span>SPEED</span><span class="val" id="cpu-speed">4.0</span></div>
+            <div class="stat-row"><span>REACTION</span><span class="val">0.85</span></div>
+            <div class="stat-row"><span>STYLE</span><span class="val">TRACKING</span></div>
+        </div>
+    </div>
+
+    <div class="scoreboard">
+        <div class="score-item genesis">
+            <div class="label">GENESIS</div>
+            <div class="score" id="genesis-score">0</div>
+        </div>
+        <div class="score-item opponent">
+            <div class="label">CPU</div>
+            <div class="score" id="cpu-score">0</div>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <span id="connection-status" class="disconnected">● CONNECTING TO GENESIS BRAIN...</span>
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <span id="fps-display">0 FPS</span>
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <span id="rally-display">RALLY: 0</span>
+    </div>
+
+    <!-- ═══ GENESIS MIND'S EYE ═══ -->
+    <div class="minds-eye">
+        <div class="minds-eye-header">
+            <h2>🧠 GENESIS MIND'S EYE</h2>
+            <span class="subtitle-tag">WHAT THE NEURAL CASCADE SEES</span>
+        </div>
+
+        <!-- ═══ GENESIS FIRST-PERSON VISION ═══ -->
+        <div class="genesis-vision-wrap">
+            <h4><span class="icon">👁️</span>GENESIS FIRST-PERSON VISION — HOW THE NEURAL CASCADE PERCEIVES THE GAME</h4>
+            <canvas id="genesis-vision" width="920" height="260"></canvas>
+            <div class="vision-legend">
+                <div class="vision-legend-item"><div class="swatch" style="background: rgba(0,255,136,0.6)"></div>SELF (COMFORT ZONE)</div>
+                <div class="vision-legend-item"><div class="swatch" style="background: rgba(0,204,255,0.8)"></div>BALL (PERCEIVED)</div>
+                <div class="vision-legend-item"><div class="swatch" style="background: rgba(255,68,102,0.6)"></div>OPPONENT (THREAT)</div>
+                <div class="vision-legend-item"><div class="swatch" style="background: rgba(136,0,255,0.5)"></div>PREDICTION PATH</div>
+                <div class="vision-legend-item"><div class="swatch" style="background: rgba(255,170,0,0.5)"></div>DANGER ZONE</div>
+                <div class="vision-legend-item"><div class="swatch" style="background: rgba(255,255,255,0.05)"></div>NEURAL NOISE</div>
+            </div>
+        </div>
+
+        <div class="minds-eye-grid">
+            <!-- Neural Embedding -->
+            <div class="minds-eye-panel">
+                <h4><span class="icon">📊</span>NEURAL EMBEDDING (64-DIM)</h4>
+                <canvas id="embedding-viz" width="440" height="100"></canvas>
+            </div>
+
+            <!-- Ball Trajectory Prediction -->
+            <div class="minds-eye-panel">
+                <h4><span class="icon">🎯</span>TRAJECTORY PREDICTION</h4>
+                <canvas id="trajectory-viz" width="440" height="100"></canvas>
+            </div>
+
+            <!-- Thought Log -->
+            <div class="minds-eye-panel">
+                <h4><span class="icon">💭</span>INTERNAL MONOLOGUE</h4>
+                <div class="thought-log" id="thought-log"></div>
+            </div>
+
+            <!-- Emotional State -->
+            <div class="minds-eye-panel">
+                <h4><span class="icon">🎭</span>EMOTIONAL STATE</h4>
+                <div class="emotional-state" id="emotional-state">
+                    <div class="emotion-chip stress"><div class="dot"></div><span>STRESS</span><span class="val" id="emo-stress">0%</span></div>
+                    <div class="emotion-chip calm"><div class="dot"></div><span>CALM</span><span class="val" id="emo-calm">50%</span></div>
+                    <div class="emotion-chip happy"><div class="dot"></div><span>JOY</span><span class="val" id="emo-joy">50%</span></div>
+                    <div class="emotion-chip focused"><div class="dot"></div><span>FOCUS</span><span class="val" id="emo-focus">0%</span></div>
+                    <div class="emotion-chip excited"><div class="dot"></div><span>THRILL</span><span class="val" id="emo-thrill">0%</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ═══════════════════════════════════════════════════════════
+    // GENESIS PONG — Game Engine
+    // ═══════════════════════════════════════════════════════════
+
+    const canvas = document.getElementById('pong');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width;
+    const H = canvas.height;
+
+    // Game state
+    const state = {
+        ball: { x: W/2, y: H/2, vx: 2, vy: 1.5, radius: 8, speed: 2.5 },
+        genesis: { x: 15, y: H/2 - 150, width: 12, height: 300, speed: 0, score: 0 },
+        cpu: { x: W - 27, y: H/2 - 70, width: 12, height: 140, speed: 3, score: 0 },
+        rally: 0,
+        maxRally: 0,
+        paused: false,
+        genesisAction: 'STAY',
+        connected: false,
+        decisions: 0,
+        surprise: 0,
+        episodes: 0,
+        policyLoss: 0,
+        valueLoss: 0,
+        entropy: 1.1,
+        avgReturn: 0,
+        actionProbs: [0.33, 0.34, 0.33],
+        neurochemistry: { dopamine: 0.5, cortisol: 0.2, serotonin: 0.5 },
+        embedding: new Float32Array(64),
+        trajectoryPrediction: [],
+    };
+
+    // Neon colors
+    const COLORS = {
+        bg: '#050508',
+        genesis: '#00ff88',
+        genesisDim: 'rgba(0, 255, 136, 0.15)',
+        cpu: '#ff4466',
+        cpuDim: 'rgba(255, 68, 102, 0.15)',
+        ball: '#00ccff',
+        ballGlow: 'rgba(0, 204, 255, 0.3)',
+        line: 'rgba(255, 255, 255, 0.06)',
+        text: 'rgba(255, 255, 255, 0.15)',
+    };
+
+    // Thought log
+    const thoughtLog = [];
+    let lastThoughtTime = 0;
+
+    function addThought(text, cls = '') {
+        const now = Date.now();
+        if (now - lastThoughtTime < 200) return;
+        lastThoughtTime = now;
+
+        const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        thoughtLog.push({ time, text, cls });
+        if (thoughtLog.length > 50) thoughtLog.shift();
+
+        const el = document.getElementById('thought-log');
+        let html = '';
+        for (let i = thoughtLog.length - 1; i >= 0; i--) {
+            const t = thoughtLog[i];
+            html += `<div class="thought-entry"><span class="time">${t.time}</span> <span class="${t.cls}">${t.text}</span></div>`;
+        }
+        el.innerHTML = html;
+    }
+
+    // ─── Ball physics ───────────────────────────────────────
+    function resetBall(direction = 1) {
+        state.ball.x = W / 2;
+        state.ball.y = H / 2;
+        const angle = (Math.random() - 0.5) * Math.PI / 3;
+        state.ball.speed = 2.5;
+        state.ball.vx = Math.cos(angle) * state.ball.speed * direction;
+        state.ball.vy = Math.sin(angle) * state.ball.speed;
+        state.rally = 0;
+    }
+
+    function updateBall() {
+        const b = state.ball;
+        b.x += b.vx;
+        b.y += b.vy;
+
+        // Top/bottom bounce
+        if (b.y - b.radius <= 0 || b.y + b.radius >= H) {
+            b.vy = -b.vy;
+            b.y = Math.max(b.radius, Math.min(H - b.radius, b.y));
+        }
+
+        // Genesis paddle collision (left)
+        const g = state.genesis;
+        if (b.vx < 0 && b.x - b.radius <= g.x + g.width && b.x + b.radius >= g.x) {
+            if (b.y >= g.y && b.y <= g.y + g.height) {
+                const hitPos = (b.y - g.y) / g.height - 0.5;
+                b.vx = Math.abs(b.vx);
+                b.vy = hitPos * 8;
+                b.speed = Math.min(6, b.speed + 0.15);
+                const spd = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
+                b.vx = (b.vx / spd) * b.speed;
+                b.vy = (b.vy / spd) * b.speed;
+                state.rally++;
+                state.maxRally = Math.max(state.maxRally, state.rally);
+                addThought(`↩ RETURNED ball (rally ${state.rally}, speed ${b.speed.toFixed(1)})`, 'action-up');
+            }
+        }
+
+        // CPU paddle collision (right)
+        const c = state.cpu;
+        if (b.vx > 0 && b.x + b.radius >= c.x && b.x - b.radius <= c.x + c.width) {
+            if (b.y >= c.y && b.y <= c.y + c.height) {
+                const hitPos = (b.y - c.y) / c.height - 0.5;
+                b.vx = -Math.abs(b.vx);
+                b.vy = hitPos * 8;
+                b.speed = Math.min(6, b.speed + 0.15);
+                const spd = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
+                b.vx = (b.vx / spd) * b.speed;
+                b.vy = (b.vy / spd) * b.speed;
+                state.rally++;
+                addThought(`↪ CPU returned (tracking ball to y=${(b.y/H).toFixed(2)})`, 'action-stay');
+            }
+        }
+
+        // Scoring
+        if (b.x < 0) {
+            state.cpu.score++;
+            document.getElementById('cpu-score').textContent = state.cpu.score;
+            addThought(`✗ CPU SCORED (${state.genesis.score}-${state.cpu.score}) — cortisol spike`, 'score-bad');
+            resetBall(1);
+            reportScore('cpu');
+        } else if (b.x > W) {
+            state.genesis.score++;
+            document.getElementById('genesis-score').textContent = state.genesis.score;
+            addThought(`★ GENESIS SCORED! (${state.genesis.score}-${state.cpu.score}) — dopamine spike!`, 'score-good');
+            resetBall(-1);
+            reportScore('genesis');
+        }
+
+        // Compute predicted trajectory
+        computeTrajectory();
+    }
+
+    function computeTrajectory() {
+        state.trajectoryPrediction = [];
+        let bx = state.ball.x, by = state.ball.y;
+        let bvx = state.ball.vx, bvy = state.ball.vy;
+        for (let i = 0; i < 30; i++) {
+            bx += bvx;
+            by += bvy;
+            if (by <= 8 || by >= H - 8) bvy = -bvy;
+            state.trajectoryPrediction.push({ x: bx / W, y: by / H });
+        }
+    }
+
+    // ─── Paddle AI (CPU) ────────────────────────────────────
+    function updateCPU() {
+        const c = state.cpu;
+        const b = state.ball;
+        const center = c.y + c.height / 2;
+        const diff = b.y - center;
+
+        if (b.vx > 0) {
+            const reaction = 0.85;
+            if (Math.abs(diff) > 10) {
+                c.y += Math.sign(diff) * c.speed * reaction;
+            }
+        } else {
+            const centerDiff = H/2 - center;
+            if (Math.abs(centerDiff) > 20) {
+                c.y += Math.sign(centerDiff) * 1.5;
+            }
+        }
+        c.y = Math.max(0, Math.min(H - c.height, c.y));
+    }
+
+    // ─── Genesis paddle (neural controlled) ─────────────────
+    function updateGenesis() {
+        const g = state.genesis;
+        const action = state.genesisAction;
+        const speed = 8;
+
+        if (action === 'UP') {
+            g.y -= speed;
+            g.speed = -speed;
+        } else if (action === 'DOWN') {
+            g.y += speed;
+            g.speed = speed;
+        } else {
+            g.speed = 0;
+        }
+        g.y = Math.max(0, Math.min(H - g.height, g.y));
+    }
+
+    // ─── Rendering ──────────────────────────────────────────
+    function draw() {
+        ctx.fillStyle = COLORS.bg;
+        ctx.fillRect(0, 0, W, H);
+
+        // Center line
+        ctx.setLineDash([8, 12]);
+        ctx.strokeStyle = COLORS.line;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(W/2, 0);
+        ctx.lineTo(W/2, H);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Center circle
+        ctx.beginPath();
+        ctx.arc(W/2, H/2, 40, 0, Math.PI * 2);
+        ctx.strokeStyle = COLORS.line;
+        ctx.stroke();
+
+        // Draw trajectory prediction on canvas
+        if (state.trajectoryPrediction.length > 0 && state.ball.vx < 0) {
+            for (let i = 0; i < state.trajectoryPrediction.length; i++) {
+                const p = state.trajectoryPrediction[i];
+                const alpha = 0.15 * (1 - i / state.trajectoryPrediction.length);
+                ctx.fillStyle = `rgba(136, 0, 255, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(p.x * W, p.y * H, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Genesis paddle (with glow)
+        const g = state.genesis;
+        ctx.shadowColor = COLORS.genesis;
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = COLORS.genesis;
+        ctx.beginPath();
+        ctx.roundRect(g.x, g.y, g.width, g.height, 4);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Genesis paddle trail
+        ctx.fillStyle = COLORS.genesisDim;
+        ctx.beginPath();
+        ctx.roundRect(g.x, g.y + 2, g.width, g.height - 4, 4);
+        ctx.fill();
+
+        // CPU paddle (with glow)
+        const c = state.cpu;
+        ctx.shadowColor = COLORS.cpu;
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = COLORS.cpu;
+        ctx.beginPath();
+        ctx.roundRect(c.x, c.y, c.width, c.height, 4);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Ball (with glow)
+        const b = state.ball;
+        ctx.shadowColor = COLORS.ball;
+        ctx.shadowBlur = 25;
+        ctx.fillStyle = COLORS.ball;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Ball trail
+        ctx.fillStyle = COLORS.ballGlow;
+        ctx.beginPath();
+        ctx.arc(b.x - b.vx * 1.5, b.y - b.vy * 1.5, b.radius * 0.7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(b.x - b.vx * 3, b.y - b.vy * 3, b.radius * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Player labels
+        ctx.font = '9px Orbitron';
+        ctx.fillStyle = 'rgba(0, 255, 136, 0.3)';
+        ctx.textAlign = 'center';
+        ctx.fillText('GENESIS', 50, 20);
+
+        ctx.fillStyle = 'rgba(255, 68, 102, 0.3)';
+        ctx.fillText('CPU', W - 50, 20);
+
+        // Rally counter
+        if (state.rally > 0) {
+            ctx.font = '12px Orbitron';
+            ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.4, state.rally * 0.05)})`;
+            ctx.textAlign = 'center';
+            ctx.fillText(`RALLY ${state.rally}`, W/2, 25);
+        }
+    }
+
+    // ─── Draw embedding visualization ───────────────────────
+    function drawEmbedding() {
+        const c = document.getElementById('embedding-viz');
+        const cx = c.getContext('2d');
+        const w = c.width;
+        const h = c.height;
+
+        cx.fillStyle = 'rgba(0,0,0,0.4)';
+        cx.fillRect(0, 0, w, h);
+
+        const emb = state.embedding;
+        const barW = w / 64;
+
+        // Compute local embedding from game state
+        computeEmbedding();
+
+        for (let i = 0; i < 64; i++) {
+            const val = emb[i];
+            const barH = Math.abs(val) * h * 0.8;
+            const x = i * barW;
+
+            // Color based on region
+            let color;
+            if (i < 8) color = '#00ccff';       // Ball state
+            else if (i < 16) color = '#00ff88';  // Genesis paddle
+            else if (i < 24) color = '#ff4466';  // CPU paddle
+            else if (i < 32) color = '#ffaa00';  // Game context
+            else if (i < 48) color = '#8800ff';  // Trajectory prediction
+            else color = '#ff66cc';              // Neurochemistry
+
+            const alpha = 0.3 + Math.abs(val) * 0.7;
+            cx.fillStyle = color;
+            cx.globalAlpha = alpha;
+
+            if (val >= 0) {
+                cx.fillRect(x + 0.5, h/2 - barH, barW - 1, barH);
+            } else {
+                cx.fillRect(x + 0.5, h/2, barW - 1, barH);
+            }
+        }
+        cx.globalAlpha = 1;
+
+        // Draw center line
+        cx.strokeStyle = 'rgba(255,255,255,0.1)';
+        cx.lineWidth = 0.5;
+        cx.beginPath();
+        cx.moveTo(0, h/2);
+        cx.lineTo(w, h/2);
+        cx.stroke();
+
+        // Labels
+        cx.font = '7px JetBrains Mono';
+        cx.fillStyle = '#334';
+        cx.textAlign = 'center';
+        cx.fillText('BALL', barW * 4, h - 3);
+        cx.fillText('PADDLE', barW * 12, h - 3);
+        cx.fillText('CPU', barW * 20, h - 3);
+        cx.fillText('CONTEXT', barW * 28, h - 3);
+        cx.fillText('TRAJECTORY', barW * 40, h - 3);
+        cx.fillText('NEURO', barW * 56, h - 3);
+    }
+
+    // ─── Draw trajectory visualization ──────────────────────
+    function drawTrajectory() {
+        const c = document.getElementById('trajectory-viz');
+        const cx = c.getContext('2d');
+        const w = c.width;
+        const h = c.height;
+
+        cx.fillStyle = 'rgba(0,0,0,0.4)';
+        cx.fillRect(0, 0, w, h);
+
+        // Draw mini court
+        cx.strokeStyle = 'rgba(255,255,255,0.06)';
+        cx.lineWidth = 1;
+        cx.strokeRect(10, 5, w - 20, h - 10);
+
+        // Center line
+        cx.setLineDash([3, 5]);
+        cx.beginPath();
+        cx.moveTo(w/2, 5);
+        cx.lineTo(w/2, h - 5);
+        cx.stroke();
+        cx.setLineDash([]);
+
+        // Genesis paddle position
+        const gY = (state.genesis.y / H) * (h - 10) + 5;
+        const gH = (state.genesis.height / H) * (h - 10);
+        cx.fillStyle = '#00ff88';
+        cx.shadowColor = '#00ff88';
+        cx.shadowBlur = 6;
+        cx.fillRect(12, gY, 3, gH);
+        cx.shadowBlur = 0;
+
+        // CPU paddle position
+        const cY = (state.cpu.y / H) * (h - 10) + 5;
+        const cH = (state.cpu.height / H) * (h - 10);
+        cx.fillStyle = '#ff4466';
+        cx.shadowColor = '#ff4466';
+        cx.shadowBlur = 6;
+        cx.fillRect(w - 15, cY, 3, cH);
+        cx.shadowBlur = 0;
+
+        // Ball position
+        const bx = (state.ball.x / W) * (w - 20) + 10;
+        const by = (state.ball.y / H) * (h - 10) + 5;
+        cx.fillStyle = '#00ccff';
+        cx.shadowColor = '#00ccff';
+        cx.shadowBlur = 8;
+        cx.beginPath();
+        cx.arc(bx, by, 4, 0, Math.PI * 2);
+        cx.fill();
+        cx.shadowBlur = 0;
+
+        // Draw predicted trajectory
+        if (state.trajectoryPrediction.length > 0) {
+            cx.beginPath();
+            cx.strokeStyle = 'rgba(136, 0, 255, 0.4)';
+            cx.lineWidth = 1.5;
+            cx.moveTo(bx, by);
+            for (let i = 0; i < state.trajectoryPrediction.length; i++) {
+                const p = state.trajectoryPrediction[i];
+                const px = p.x * (w - 20) + 10;
+                const py = p.y * (h - 10) + 5;
+                cx.lineTo(px, py);
+            }
+            cx.stroke();
+
+            // Draw interception point
+            if (state.ball.vx < 0 && state.trajectoryPrediction.length > 0) {
+                // Find where trajectory crosses x=0
+                for (const p of state.trajectoryPrediction) {
+                    if (p.x < 0.05) {
+                        const ipx = p.x * (w - 20) + 10;
+                        const ipy = p.y * (h - 10) + 5;
+                        cx.fillStyle = 'rgba(136, 0, 255, 0.6)';
+                        cx.beginPath();
+                        cx.arc(ipx, ipy, 5, 0, Math.PI * 2);
+                        cx.fill();
+                        cx.font = '7px JetBrains Mono';
+                        cx.fillStyle = '#8800ff';
+                        cx.textAlign = 'left';
+                        cx.fillText('INTERCEPT', ipx + 8, ipy + 3);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Direction arrow for ball
+        const aLen = 12;
+        const aAngle = Math.atan2(state.ball.vy, state.ball.vx);
+        cx.strokeStyle = 'rgba(0, 204, 255, 0.5)';
+        cx.lineWidth = 1.5;
+        cx.beginPath();
+        cx.moveTo(bx, by);
+        cx.lineTo(bx + Math.cos(aAngle) * aLen, by + Math.sin(aAngle) * aLen);
+        cx.stroke();
+    }
+
+    // ─── Compute embedding from game state ──────────────────
+    function computeEmbedding() {
+        const emb = state.embedding;
+        // Ball state [0:8]
+        emb[0] = state.ball.x / W;
+        emb[1] = state.ball.y / H;
+        emb[2] = state.ball.vx / 12;
+        emb[3] = state.ball.vy / 12;
+        emb[4] = Math.sqrt(emb[2]**2 + emb[3]**2);
+        emb[5] = emb[0] - (state.ball.x - state.ball.vx) / W;
+        emb[6] = emb[1] - (state.ball.y - state.ball.vy) / H;
+        emb[7] = emb[0];
+        // Genesis paddle [8:16]
+        emb[8] = state.genesis.y / H;
+        emb[9] = (state.genesis.y + state.genesis.height / 2) / H;
+        emb[10] = state.genesisAction === 'UP' ? 1.0 : (state.genesisAction === 'DOWN' ? -1.0 : 0.0);
+        emb[11] = state.genesis.score / 10;
+        emb[12] = emb[1] - emb[9];
+        // CPU paddle [16:24]
+        emb[16] = state.cpu.y / H;
+        emb[17] = state.cpu.score / 10;
+        // Game context [24:32]
+        emb[24] = state.rally / 20;
+        emb[25] = (state.genesis.score - state.cpu.score) / 10;
+        emb[26] = state.decisions / 5000;
+        // Trajectory [32:48]
+        for (let i = 0; i < 8 && i < state.trajectoryPrediction.length; i++) {
+            emb[32 + i*2] = state.trajectoryPrediction[i].x;
+            emb[33 + i*2] = state.trajectoryPrediction[i].y;
+        }
+        // Neurochemistry [48:64]
+        emb[48] = state.neurochemistry.dopamine;
+        emb[49] = state.neurochemistry.cortisol;
+        emb[50] = state.neurochemistry.serotonin;
+        emb[52] = Math.abs(state.neurochemistry.dopamine - state.neurochemistry.cortisol);
+    }
+
+    // ─── Update emotional state display ─────────────────────
+    function updateEmotions() {
+        const nc = state.neurochemistry;
+        const stress = Math.round(nc.cortisol * 100);
+        const calm = Math.round(nc.serotonin * 100);
+        const joy = Math.round(nc.dopamine * 100);
+        const focus = Math.round(Math.min(1, state.rally / 10) * 100);
+        const thrill = Math.round(Math.min(1, state.surprise + (state.rally > 5 ? 0.3 : 0)) * 100);
+
+        document.getElementById('emo-stress').textContent = stress + '%';
+        document.getElementById('emo-calm').textContent = calm + '%';
+        document.getElementById('emo-joy').textContent = joy + '%';
+        document.getElementById('emo-focus').textContent = focus + '%';
+        document.getElementById('emo-thrill').textContent = thrill + '%';
+
+        // Generate periodic thoughts based on state
+        if (state.rally > 0 && state.rally % 10 === 0) {
+            addThought(`🎯 Rally ${state.rally}! Flow state — serotonin boost`, 'rally-flow');
+        }
+    }
+
+    // ─── Genesis Brain Communication ────────────────────────
+    let lastActionTime = 0;
+    const ACTION_INTERVAL = 100;
+
+    async function askGenesis() {
+        const now = Date.now();
+        if (now - lastActionTime < ACTION_INTERVAL) return;
+        lastActionTime = now;
+
+        const payload = {
+            ball_x: state.ball.x / W,
+            ball_y: state.ball.y / H,
+            ball_vx: state.ball.vx / 12,
+            ball_vy: state.ball.vy / 12,
+            paddle_y: state.genesis.y / H,
+            paddle_center: (state.genesis.y + state.genesis.height / 2) / H,
+            cpu_y: state.cpu.y / H,
+            rally: state.rally,
+            genesis_score: state.genesis.score,
+            cpu_score: state.cpu.score,
+        };
+
+        try {
+            const res = await fetch('/api/pong/action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                state.genesisAction = data.action || 'STAY';
+                state.connected = true;
+                state.decisions = data.decisions || 0;
+                state.surprise = data.surprise || 0;
+                state.episodes = data.episodes || 0;
+                state.policyLoss = data.policy_loss || 0;
+                state.valueLoss = data.value_loss || 0;
+                state.entropy = data.entropy || 1.1;
+                state.avgReturn = data.avg_return || 0;
+                state.actionProbs = data.action_probs || [0.33, 0.34, 0.33];
+                if (data.neurochemistry) {
+                    state.neurochemistry = data.neurochemistry;
+                }
+                updateUI(data);
+            }
+        } catch (e) {
+            state.connected = false;
+            state.genesisAction = 'STAY';
+        }
+    }
+
+    function reportScore(scorer) {
+        fetch('/api/pong/score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scorer, rally: state.rally }),
+        }).catch(() => {});
+    }
+
+    function updateUI(data) {
+        const nc = data.neurochemistry || state.neurochemistry;
+        document.getElementById('dopamine-bar').style.width = (nc.dopamine * 100) + '%';
+        document.getElementById('dopamine-val').textContent = nc.dopamine.toFixed(2);
+        document.getElementById('cortisol-bar').style.width = (nc.cortisol * 100) + '%';
+        document.getElementById('cortisol-val').textContent = nc.cortisol.toFixed(2);
+        document.getElementById('serotonin-bar').style.width = (nc.serotonin * 100) + '%';
+        document.getElementById('serotonin-val').textContent = nc.serotonin.toFixed(2);
+
+        document.getElementById('surprise-val').textContent = (data.surprise || 0).toFixed(3);
+        document.getElementById('decisions-val').textContent = data.decisions || 0;
+
+        const actionMap = { UP: '⬆', DOWN: '⬇', STAY: '⏸' };
+        const el = document.getElementById('action-display');
+        el.textContent = actionMap[state.genesisAction] || '⏸';
+        el.className = 'action-display' + (state.genesisAction !== 'STAY' ? ' thinking' : '');
+
+        // RL stats — action probability bars
+        const probs = state.actionProbs;
+        document.getElementById('rl-episodes-val').textContent = state.episodes;
+        document.getElementById('prob-up-val').textContent = Math.round(probs[0] * 100) + '%';
+        document.getElementById('prob-up-bar').style.width = Math.round(probs[0] * 100) + '%';
+        document.getElementById('prob-stay-val').textContent = Math.round(probs[1] * 100) + '%';
+        document.getElementById('prob-stay-bar').style.width = Math.round(probs[1] * 100) + '%';
+        document.getElementById('prob-down-val').textContent = Math.round(probs[2] * 100) + '%';
+        document.getElementById('prob-down-bar').style.width = Math.round(probs[2] * 100) + '%';
+        document.getElementById('rl-entropy-val').textContent = state.entropy.toFixed(3);
+        document.getElementById('rl-return-val').textContent = state.avgReturn.toFixed(3);
+        document.getElementById('rl-ploss-val').textContent = state.policyLoss !== 0 ? state.policyLoss.toFixed(4) : '—';
+
+        // Color entropy: green=exploring, red=converged
+        const entropyEl = document.getElementById('rl-entropy-val');
+        if (state.entropy > 0.8) entropyEl.style.color = '#00ff88';  // exploring
+        else if (state.entropy > 0.3) entropyEl.style.color = '#ffaa00';  // narrowing
+        else entropyEl.style.color = '#ff4466';  // converged
+
+        // Color return: green=positive, red=negative
+        const returnEl = document.getElementById('rl-return-val');
+        returnEl.style.color = state.avgReturn >= 0 ? '#00ff88' : '#ff4466';
+
+        // Thought log entries
+        if (state.episodes > 0 && state.episodes % 10 === 0) {
+            const retStr = state.avgReturn >= 0 ? '+' + state.avgReturn.toFixed(3) : state.avgReturn.toFixed(3);
+            addThought(`🧠 Episode ${state.episodes} — return: ${retStr}, entropy: ${state.entropy.toFixed(3)}`, 'ep-' + state.episodes);
+        }
+        if (state.entropy < 0.5 && state.episodes > 20) {
+            addThought(`⚡ Policy converging! Entropy ${state.entropy.toFixed(3)} — Genesis is becoming confident`, 'converge');
+        }
+        if (state.avgReturn > 0 && state.episodes > 30) {
+            addThought(`🎯 Positive average return! Genesis is LEARNING to win`, 'winning');
+        }
+
+        const statusEl = document.getElementById('connection-status');
+        if (state.connected) {
+            statusEl.textContent = `● RL — NO TEACHER (${state.episodes} episodes)`;
+            statusEl.className = 'connected';
+        } else {
+            statusEl.textContent = '● FALLBACK AI (NO BRAIN)';
+            statusEl.className = 'disconnected';
+        }
+    }
+
+    // ─── FPS Counter ────────────────────────────────────────
+    let frameCount = 0;
+    let lastFPSTime = Date.now();
+    function updateFPS() {
+        frameCount++;
+        const now = Date.now();
+        if (now - lastFPSTime >= 1000) {
+            document.getElementById('fps-display').textContent = frameCount + ' FPS';
+            frameCount = 0;
+            lastFPSTime = now;
+        }
+        document.getElementById('rally-display').textContent =
+            `RALLY: ${state.rally}  |  BEST: ${state.maxRally}`;
+    }
+
+    // ─── Genesis First-Person Vision ────────────────────────
+    let noisePhase = 0;
+    function drawGenesisVision() {
+        const c = document.getElementById('genesis-vision');
+        const cx = c.getContext('2d');
+        const w = c.width;
+        const h = c.height;
+        noisePhase += 0.02;
+
+        // Black background
+        cx.fillStyle = '#020204';
+        cx.fillRect(0, 0, w, h);
+
+        // ─── Attention heatmap gradient (Genesis focuses on ball side) ───
+        const ballNormX = state.ball.x / W;
+        const ballNormY = state.ball.y / H;
+        const bScreenX = ballNormX * w;
+        const bScreenY = ballNormY * h;
+
+        // Attention spotlight follows ball with lag
+        const attGrad = cx.createRadialGradient(bScreenX, bScreenY, 0, bScreenX, bScreenY, w * 0.4);
+        attGrad.addColorStop(0, 'rgba(136, 0, 255, 0.08)');
+        attGrad.addColorStop(0.5, 'rgba(136, 0, 255, 0.03)');
+        attGrad.addColorStop(1, 'transparent');
+        cx.fillStyle = attGrad;
+        cx.fillRect(0, 0, w, h);
+
+        // ─── Court outline (viewed from Genesis's perspective) ───
+        cx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+        cx.lineWidth = 1;
+        cx.strokeRect(4, 4, w - 8, h - 8);
+
+        // Center line
+        cx.setLineDash([4, 8]);
+        cx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+        cx.beginPath();
+        cx.moveTo(w / 2, 4);
+        cx.lineTo(w / 2, h - 4);
+        cx.stroke();
+        cx.setLineDash([]);
+
+        // ─── GENESIS SELF — Comfort Zone ───
+        const gY = (state.genesis.y / H) * h;
+        const gHeight = (state.genesis.height / H) * h;
+        const gX = (state.genesis.x / W) * w;
+
+        // Genesis perceives its own paddle zone — comfort area
+        const comfortGrad = cx.createRadialGradient(
+            gX + 10, gY + gHeight / 2, 5,
+            gX + 10, gY + gHeight / 2, w * 0.15
+        );
+        comfortGrad.addColorStop(0, 'rgba(0, 255, 136, 0.12)');
+        comfortGrad.addColorStop(0.5, 'rgba(0, 255, 136, 0.04)');
+        comfortGrad.addColorStop(1, 'transparent');
+        cx.fillStyle = comfortGrad;
+        cx.fillRect(0, 0, w * 0.3, h);
+
+        // Genesis paddle (seen as "self")
+        cx.shadowColor = '#00ff88';
+        cx.shadowBlur = 15;
+        cx.fillStyle = 'rgba(0, 255, 136, 0.8)';
+        cx.fillRect(gX, gY, 8, gHeight);
+        cx.shadowBlur = 0;
+
+        // Paddle "I'm here" label
+        cx.font = '8px JetBrains Mono';
+        cx.fillStyle = 'rgba(0, 255, 136, 0.4)';
+        cx.textAlign = 'left';
+        cx.fillText('SELF', gX + 14, gY + gHeight / 2 + 3);
+
+        // ─── Current action visual ───
+        if (state.genesisAction === 'UP') {
+            cx.strokeStyle = 'rgba(0, 255, 136, 0.3)';
+            cx.lineWidth = 2;
+            cx.beginPath();
+            cx.moveTo(gX + 4, gY - 2);
+            cx.lineTo(gX + 4, gY - 16);
+            cx.lineTo(gX + 10, gY - 10);
+            cx.moveTo(gX + 4, gY - 16);
+            cx.lineTo(gX - 2, gY - 10);
+            cx.stroke();
+        } else if (state.genesisAction === 'DOWN') {
+            cx.strokeStyle = 'rgba(0, 255, 136, 0.3)';
+            cx.lineWidth = 2;
+            cx.beginPath();
+            cx.moveTo(gX + 4, gY + gHeight + 2);
+            cx.lineTo(gX + 4, gY + gHeight + 16);
+            cx.lineTo(gX + 10, gY + gHeight + 10);
+            cx.moveTo(gX + 4, gY + gHeight + 16);
+            cx.lineTo(gX - 2, gY + gHeight + 10);
+            cx.stroke();
+        }
+
+        // ─── OPPONENT — Threat Zone ───
+        const cpuY = (state.cpu.y / H) * h;
+        const cpuHeight = (state.cpu.height / H) * h;
+        const cpuX = (state.cpu.x / W) * w;
+
+        // Opponent threat zone
+        const threatGrad = cx.createRadialGradient(
+            cpuX, cpuY + cpuHeight / 2, 5,
+            cpuX, cpuY + cpuHeight / 2, w * 0.12
+        );
+        threatGrad.addColorStop(0, 'rgba(255, 68, 102, 0.1)');
+        threatGrad.addColorStop(1, 'transparent');
+        cx.fillStyle = threatGrad;
+        cx.fillRect(w * 0.7, 0, w * 0.3, h);
+
+        // Opponent paddle (perceived as threat)
+        cx.shadowColor = '#ff4466';
+        cx.shadowBlur = 12;
+        cx.fillStyle = 'rgba(255, 68, 102, 0.6)';
+        cx.fillRect(cpuX, cpuY, 8, cpuHeight);
+        cx.shadowBlur = 0;
+
+        // Threat label
+        cx.font = '8px JetBrains Mono';
+        cx.fillStyle = 'rgba(255, 68, 102, 0.35)';
+        cx.textAlign = 'right';
+        cx.fillText('THREAT', cpuX - 8, cpuY + cpuHeight / 2 + 3);
+
+        // ─── THE BALL — How Genesis Perceives It ───
+        const ballDist = Math.sqrt((state.ball.x / W) ** 2 + ((state.ball.y / H) - (state.genesis.y + state.genesis.height / 2) / H) ** 2);
+        const isApproaching = state.ball.vx < 0;
+        const danger = isApproaching ? Math.max(0, 1 - ballNormX) : 0;
+
+        // Danger zone — orange/red glow when ball approaches
+        if (isApproaching && danger > 0.3) {
+            const dangerGrad = cx.createRadialGradient(
+                bScreenX, bScreenY, 5,
+                bScreenX, bScreenY, 60 + danger * 40
+            );
+            dangerGrad.addColorStop(0, `rgba(255, 170, 0, ${danger * 0.2})`);
+            dangerGrad.addColorStop(0.5, `rgba(255, 68, 50, ${danger * 0.1})`);
+            dangerGrad.addColorStop(1, 'transparent');
+            cx.fillStyle = dangerGrad;
+            cx.beginPath();
+            cx.arc(bScreenX, bScreenY, 60 + danger * 40, 0, Math.PI * 2);
+            cx.fill();
+        }
+
+        // Ball perceived with uncertainty rings
+        const uncertainty = state.surprise * 15 + 5;
+
+        // Outer uncertainty ring
+        cx.strokeStyle = `rgba(0, 204, 255, ${0.1 + state.surprise * 0.15})`;
+        cx.lineWidth = 1;
+        cx.beginPath();
+        cx.arc(bScreenX, bScreenY, uncertainty + 8, 0, Math.PI * 2);
+        cx.stroke();
+
+        // Middle ring
+        cx.strokeStyle = `rgba(0, 204, 255, ${0.2 + state.surprise * 0.2})`;
+        cx.beginPath();
+        cx.arc(bScreenX, bScreenY, uncertainty + 3, 0, Math.PI * 2);
+        cx.stroke();
+
+        // Ball core (what Genesis perceives)
+        cx.shadowColor = '#00ccff';
+        cx.shadowBlur = 20;
+        cx.fillStyle = 'rgba(0, 204, 255, 0.9)';
+        cx.beginPath();
+        cx.arc(bScreenX, bScreenY, 6, 0, Math.PI * 2);
+        cx.fill();
+        cx.shadowBlur = 0;
+
+        // Velocity vector
+        const velScale = 20;
+        const velX = (state.ball.vx / 12) * velScale;
+        const velY = (state.ball.vy / 12) * velScale;
+        cx.strokeStyle = 'rgba(0, 204, 255, 0.4)';
+        cx.lineWidth = 1.5;
+        cx.beginPath();
+        cx.moveTo(bScreenX, bScreenY);
+        cx.lineTo(bScreenX + velX * 3, bScreenY + velY * 3);
+        cx.stroke();
+
+        // Ball label
+        cx.font = '7px JetBrains Mono';
+        cx.fillStyle = isApproaching ? 'rgba(255, 170, 0, 0.6)' : 'rgba(0, 204, 255, 0.4)';
+        cx.textAlign = 'center';
+        cx.fillText(
+            isApproaching ? `INCOMING (${(danger * 100).toFixed(0)}% DANGER)` : 'RETREATING',
+            bScreenX, bScreenY - uncertainty - 14
+        );
+        cx.fillStyle = 'rgba(255,255,255,0.2)';
+        cx.fillText(
+            `pos:(${ballNormX.toFixed(2)}, ${ballNormY.toFixed(2)})  spd:${state.ball.speed.toFixed(1)}`,
+            bScreenX, bScreenY + uncertainty + 18
+        );
+
+        // ─── Trajectory prediction line ───
+        if (state.trajectoryPrediction.length > 0) {
+            cx.beginPath();
+            cx.moveTo(bScreenX, bScreenY);
+            for (let i = 0; i < state.trajectoryPrediction.length; i++) {
+                const p = state.trajectoryPrediction[i];
+                cx.lineTo(p.x * w, p.y * h);
+            }
+            cx.strokeStyle = 'rgba(136, 0, 255, 0.25)';
+            cx.lineWidth = 1.5;
+            cx.setLineDash([4, 4]);
+            cx.stroke();
+            cx.setLineDash([]);
+
+            // Intercept marker
+            if (isApproaching) {
+                for (const p of state.trajectoryPrediction) {
+                    if (p.x * w < gX + 30) {
+                        const ix = p.x * w;
+                        const iy = p.y * h;
+                        // Intercept ring
+                        cx.strokeStyle = 'rgba(136, 0, 255, 0.5)';
+                        cx.lineWidth = 2;
+                        cx.beginPath();
+                        cx.arc(ix, iy, 10, 0, Math.PI * 2);
+                        cx.stroke();
+                        // Crosshair
+                        cx.beginPath();
+                        cx.moveTo(ix - 14, iy);
+                        cx.lineTo(ix + 14, iy);
+                        cx.moveTo(ix, iy - 14);
+                        cx.lineTo(ix, iy + 14);
+                        cx.strokeStyle = 'rgba(136, 0, 255, 0.2)';
+                        cx.lineWidth = 0.5;
+                        cx.stroke();
+                        cx.font = '7px JetBrains Mono';
+                        cx.fillStyle = 'rgba(136, 0, 255, 0.5)';
+                        cx.textAlign = 'left';
+                        cx.fillText('INTERCEPT', ix + 14, iy + 3);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // ─── Neural noise overlay (simulates imperfect perception) ───
+        const cortisol = state.neurochemistry.cortisol;
+        const noiseIntensity = cortisol * 0.06 + 0.01;
+        for (let i = 0; i < 80; i++) {
+            const nx = Math.random() * w;
+            const ny = Math.random() * h;
+            const ns = Math.random() * 3 + 0.5;
+            cx.fillStyle = `rgba(255, 255, 255, ${Math.random() * noiseIntensity})`;
+            cx.fillRect(nx, ny, ns, ns);
+        }
+
+        // Scanline effect
+        for (let y = 0; y < h; y += 4) {
+            cx.fillStyle = `rgba(0, 0, 0, ${0.05 + Math.sin(y * 0.1 + noisePhase) * 0.02})`;
+            cx.fillRect(0, y, w, 1);
+        }
+
+        // ─── Distance indicator ───
+        const gCenter = (state.genesis.y + state.genesis.height / 2) / H;
+        const vertDist = Math.abs(ballNormY - gCenter);
+        const vertDir = ballNormY > gCenter ? 'BELOW' : 'ABOVE';
+
+        cx.font = '8px JetBrains Mono';
+        cx.fillStyle = 'rgba(0, 255, 136, 0.3)';
+        cx.textAlign = 'left';
+        cx.fillText(`BALL ${vertDir} BY ${(vertDist * 100).toFixed(0)}%`, 12, h - 30);
+        cx.fillText(`RALLY: ${state.rally}  |  ACTION: ${state.genesisAction}`, 12, h - 18);
+        cx.fillText(`DECISIONS: ${state.decisions}  |  SURPRISE: ${state.surprise.toFixed(3)}`, 12, h - 6);
+
+        // Status indicators (top right)
+        cx.textAlign = 'right';
+        cx.fillStyle = state.connected ? 'rgba(0, 255, 136, 0.5)' : 'rgba(255, 68, 102, 0.5)';
+        cx.fillText(state.connected ? '● NEURAL CASCADE ACTIVE' : '● FALLBACK MODE', w - 12, 16);
+        cx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+        cx.fillText(`DOPAMINE: ${state.neurochemistry.dopamine.toFixed(2)}  CORTISOL: ${state.neurochemistry.cortisol.toFixed(2)}`, w - 12, 28);
+
+        // ─── Cortisol vignette (stress = darker edges) ───
+        const vigGrad = cx.createRadialGradient(w/2, h/2, w * 0.25, w/2, h/2, w * 0.6);
+        vigGrad.addColorStop(0, 'transparent');
+        vigGrad.addColorStop(1, `rgba(${cortisol > 0.5 ? '80, 0, 0' : '0, 0, 0'}, ${0.2 + cortisol * 0.3})`);
+        cx.fillStyle = vigGrad;
+        cx.fillRect(0, 0, w, h);
+    }
+
+    // ─── Mind's Eye update (lower frequency) ────────────────
+    let lastMindUpdate = 0;
+    function updateMindsEye() {
+        const now = Date.now();
+        if (now - lastMindUpdate < 100) return;
+        lastMindUpdate = now;
+        drawGenesisVision();
+        drawEmbedding();
+        drawTrajectory();
+        updateEmotions();
+    }
+
+    // ─── Main game loop ─────────────────────────────────────
+    function gameLoop() {
+        if (!state.paused) {
+            askGenesis(); // Always poll to keep/restore connection
+            
+            // Freeze everything if Genesis is offline so it's not "faking" gameplay
+            if (state.connected) {
+                updateGenesis();
+                updateCPU();
+                updateBall();
+            }
+        }
+        
+        draw();
+        
+        // Draw connection overlay if offline
+        if (!state.connected && !state.paused) {
+            ctx.fillStyle = 'rgba(5, 5, 8, 0.85)';
+            ctx.fillRect(0, 0, W, H);
+            ctx.fillStyle = COLORS.genesis;
+            ctx.font = 'bold 24px Orbitron';
+            ctx.textAlign = 'center';
+            ctx.fillText('WAITING FOR GENESIS BRAIN', W/2, H/2 - 10);
+            ctx.font = '12px JetBrains Mono';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.fillText('Neural server offline. Reality frozen.', W/2, H/2 + 25);
+        }
+        
+        updateFPS();
+        updateMindsEye();
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Start
+    resetBall(1);
+    addThought('🧠 Genesis neural cascade initialized', 'action-up');
+    addThought('🎮 Waiting for first ball...', 'action-stay');
+    gameLoop();
+
+    document.getElementById('connection-status').textContent = '● CONNECTING TO GENESIS BRAIN...';
+    </script>
+</body>
+</html>

@@ -158,7 +158,8 @@ class PersonalityNetwork:
 
     def experience(self, concept_embedding: np.ndarray,
                    limbic_state: Dict[str, float],
-                   context: Optional[np.ndarray] = None) -> np.ndarray:
+                   context: Optional[np.ndarray] = None,
+                   train: bool = True) -> np.ndarray:
         """
         Process a new experience — the core consciousness operation.
 
@@ -169,6 +170,7 @@ class PersonalityNetwork:
             concept_embedding: 64-dim unified concept from the binding network
             limbic_state: Dict with dopamine, cortisol, serotonin, oxytocin
             context: Optional 32-dim context vector
+            train: Whether to accumulate this experience for weight updates
 
         Returns:
             64-dim response embedding (can be decoded into text/action)
@@ -183,17 +185,18 @@ class PersonalityNetwork:
         # Update the persistent hidden state — consciousness evolves
         self._hidden_state = new_hidden.detach()
 
-        # Store for training
-        self._experience_buffer.append({
-            'input': experience_vec,
-            'concept': concept_embedding.copy(),
-        })
+        if train:
+            # Store for training
+            self._experience_buffer.append({
+                'input': experience_vec,
+                'concept': concept_embedding.copy(),
+            })
 
-        self._total_experiences += 1
+            self._total_experiences += 1
 
-        # Train periodically on the experience buffer
-        if self._total_experiences % 5 == 0 and len(self._experience_buffer) > 2:
-            self._train_on_buffer()
+            # Train periodically on the experience buffer
+            if self._total_experiences % 5 == 0 and len(self._experience_buffer) > 2:
+                self._train_on_buffer()
 
         return response.squeeze(0).squeeze(0).cpu().numpy()
 

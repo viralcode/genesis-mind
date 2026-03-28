@@ -203,6 +203,7 @@ class Subconscious:
             concept_embedding=concept_embedding,
             limbic_state=limbic_response,
             context=context,
+            train=train,
         )
         result['personality_response'] = response
         result['consciousness_state'] = self.personality.get_consciousness_state()
@@ -275,7 +276,13 @@ class Subconscious:
         priorities = priorities * recency
         
         # Normalize to probability distribution
-        priorities = priorities / (priorities.sum() + 1e-8)
+        total = priorities.sum()
+        if total > 0:
+            priorities = priorities / total
+        else:
+            priorities = np.ones(len(priorities)) / len(priorities)
+        # Ensure exact sum=1.0 for numpy (float precision fix)
+        priorities = priorities / priorities.sum()
         
         indices = np.random.choice(len(self.replay_buffer), size=batch_size, 
                                     replace=False, p=priorities)

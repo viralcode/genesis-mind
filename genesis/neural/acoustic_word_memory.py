@@ -78,6 +78,12 @@ class AcousticWordMemory:
         self.recognition_threshold = recognition_threshold
         self.min_token_length = min_token_length
 
+        # VQ codebook utilization — updated externally by brain daemon
+        # Controls adaptive diversity threshold:
+        #   < 10% util → min_unique=2 (immature codebook)
+        #   >= 10%     → min_unique=3 (normal)
+        self._vq_utilization = 0.05  # Conservative default
+
         # word → list of AcousticExemplar
         self._exemplars: Dict[str, List[AcousticExemplar]] = {}
 
@@ -142,15 +148,25 @@ class AcousticWordMemory:
     # Recognition — identify a word from VQ tokens
     # =========================================================================
 
-    def _has_diversity(self, vq_tokens: List[int], min_unique: int = 3) -> bool:
+    def _has_diversity(self, vq_tokens: List[int], min_unique: int = None) -> bool:
         """
         Check if a token sequence has enough diversity to be meaningful.
         
-        A sequence of all-zeros (or all same token) is noise from an
-        untrained VQ codebook, not real speech. Require at least
-        `min_unique` distinct tokens.
+        Adaptive threshold based on VQ codebook maturity:
+        - Immature codebook (<10% utilization): min_unique=2
+        - Mature codebook (>=10%): min_unique=3
+        
+        This prevents rejecting valid audio when the codebook only
+        has a few active entries (early learning phase).
         """
+        if min_unique is None:
+            # Adaptive: lower bar when codebook is immature
+            min_unique = 2 if self._vq_utilization < 0.10 else 3
         return len(set(vq_tokens)) >= min_unique
+
+    def set_vq_utilization(self, utilization: float):
+        """Update VQ codebook utilization (called by brain daemon)."""
+        self._vq_utilization = utilization
 
     def recognize(self, vq_tokens: List[int],
                    top_k: int = 3) -> List[RecognitionResult]:
