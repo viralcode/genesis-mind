@@ -115,6 +115,9 @@ class WorldModel:
             'state_dict': get_state_dict_safe(self.network),
             'predictions': self._predictions_made,
             'loss': self._total_loss,
+            # Architecture dimensions — critical for correct reload
+            'hidden_dim': self.hidden_dim,
+            'concept_dim': self.concept_dim,
         }, path)
         logger.info("World model saved (%d predictions)", self._predictions_made)
 
@@ -122,13 +125,28 @@ class WorldModel:
         if path.exists():
             try:
                 checkpoint = torch.load(path, map_location='cpu', weights_only=False)
+
+                # Reconstruct at saved dimensions if they differ
+                saved_hidden = checkpoint.get('hidden_dim', self.hidden_dim)
+                saved_concept = checkpoint.get('concept_dim', self.concept_dim)
+
+                if saved_hidden != self.hidden_dim:
+                    logger.info(
+                        "Resizing world model to match checkpoint: hidden %d→%d",
+                        self.hidden_dim, saved_hidden,
+                    )
+                    self.hidden_dim = saved_hidden
+                    self.concept_dim = saved_concept
+                    self.network = to_device(ForwardPredictor(saved_concept, saved_hidden))
+                    self.optimizer = optim.Adam(self.network.parameters(), lr=0.001)
+
                 self.network.load_state_dict(strip_compile_prefix(checkpoint['state_dict']))
                 self._predictions_made = checkpoint.get('predictions', 0)
                 self._total_loss = checkpoint.get('loss', 0.0)
-                logger.info("World model loaded (%d prior predictions)", self._predictions_made)
+                logger.info("World model loaded (%d prior predictions, hidden=%d)",
+                            self._predictions_made, self.hidden_dim)
             except RuntimeError as e:
                 logger.warning("World model weights incompatible, reinitializing: %s", e)
-                path.unlink(missing_ok=True)
 
     def get_stats(self) -> dict:
         return {

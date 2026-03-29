@@ -226,10 +226,16 @@ class MetaController:
 
     def save_weights(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)
+        # Get current hidden_dim from the network's first linear layer
+        hidden_dim = self.network.attention[0].out_features
         torch.save({
             'state_dict': get_state_dict_safe(self.network),
             'avg_weights': self._avg_weights,
             'total_routes': self._total_routes,
+            # Architecture dimensions — critical for correct reload
+            'hidden_dim': hidden_dim,
+            'input_dim': self.input_dim,
+            'num_modules': self.num_modules,
         }, path)
         logger.info("Meta-controller saved (%d routes)", self._total_routes)
 
@@ -237,13 +243,30 @@ class MetaController:
         if path.exists():
             try:
                 checkpoint = torch.load(path, map_location='cpu', weights_only=False)
+
+                # Reconstruct at saved dimensions if they differ
+                saved_hidden = checkpoint.get('hidden_dim', 64)
+                saved_input = checkpoint.get('input_dim', self.input_dim)
+                saved_modules = checkpoint.get('num_modules', self.num_modules)
+                current_hidden = self.network.attention[0].out_features
+
+                if saved_hidden != current_hidden:
+                    logger.info(
+                        "Resizing meta-controller to match checkpoint: hidden %d→%d",
+                        current_hidden, saved_hidden,
+                    )
+                    self.network = to_device(RouterNetwork(
+                        saved_input, saved_modules, saved_hidden,
+                    ))
+                    self.optimizer = optim.Adam(self.network.parameters(), lr=0.0003)
+
                 self.network.load_state_dict(strip_compile_prefix(checkpoint['state_dict']))
                 self._avg_weights = checkpoint.get('avg_weights', self._avg_weights)
                 self._total_routes = checkpoint.get('total_routes', 0)
-                logger.info("Meta-controller loaded (%d prior routes)", self._total_routes)
+                logger.info("Meta-controller loaded (%d prior routes, hidden=%d)",
+                            self._total_routes, saved_hidden)
             except RuntimeError as e:
-                logger.warning("Meta-controller weights incompatible (architecture changed), reinitializing: %s", e)
-                path.unlink(missing_ok=True)
+                logger.warning("Meta-controller weights incompatible, reinitializing: %s", e)
 
     def get_stats(self) -> Dict:
         personality = self.get_routing_personality()

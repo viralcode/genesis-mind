@@ -306,13 +306,16 @@ class NeuralVocoder:
             import os
             import subprocess
             import tempfile
+            import uuid
             
-            # Save to temporary wav file
-            out_file = os.path.join(tempfile.gettempdir(), "genesis_voice_out.wav")
+            # Generate a unique temp file so rapid babbling doesn't overwrite a file
+            # that macOS 'afplay' is actively memory-mapping (which caused the Bus Errors)
+            unique_id = uuid.uuid4().hex[:8]
+            out_file = os.path.join(tempfile.gettempdir(), f"genesis_voice_{unique_id}.wav")
             wavfile.write(out_file, self.sample_rate, waveform)
             
-            # Play securely in background using Apple's afplay subsystem
-            subprocess.Popen(["afplay", out_file])
+            # Play securely in background and explicitly delete the file when done
+            subprocess.Popen(f"afplay {out_file} && rm {out_file}", shell=True)
             
         except Exception as e:
             logger.error("Audio playback issue: %s", e)

@@ -131,7 +131,7 @@ class PongTrainer:
         )
 
         self.gamma = 0.99      # Discount factor
-        self.entropy_coef = 0.05  # Moderate exploration bonus
+        self.entropy_coef = 0.15  # Strong exploration — prevents STAY collapse
 
         # ═══ EPISODE TRAJECTORY ═══
         # Store ONLY raw data — no graph tensors (thread safety)
@@ -145,6 +145,7 @@ class PongTrainer:
         self.policy_loss = 0.0
         self.value_loss = 0.0
         self.avg_entropy = 1.1   # log(3) ≈ 1.1 at start (uniform)
+        self._min_entropy_floor = 0.5  # Minimum entropy enforced early on
         self.avg_return = 0.0
         self._return_history = deque(maxlen=50)
 
@@ -400,7 +401,14 @@ class PongTrainer:
 
         # ─── Policy gradient loss ───
         policy_loss = -(log_probs * advantages).mean()
-        entropy_bonus = -self.entropy_coef * entropies.mean()
+        # Adaptive entropy floor: force exploration in early training
+        min_floor = max(0.1, self._min_entropy_floor * (1.0 - self.training_steps / 500))
+        if self.avg_entropy < min_floor:
+            # Boost entropy coefficient when policy collapses
+            effective_entropy_coef = self.entropy_coef * 3.0
+        else:
+            effective_entropy_coef = self.entropy_coef
+        entropy_bonus = -effective_entropy_coef * entropies.mean()
         total_policy_loss = policy_loss + entropy_bonus
 
         self.policy_optimizer.zero_grad()

@@ -882,34 +882,36 @@ class BrainDaemon:
                     self.mind.neurochemistry.cortisol.spike(0.01)  # Mild stress from unknown
 
             # ═══ STATISTICAL WORD DISCOVERY (Saffran 1996) ═══
-            # Feed ALL heard VQ tokens to the pattern detector,
-            # regardless of whether DTW recognized them.
-            # This builds word boundaries from transitional probabilities.
+            # Feed VQ tokens to the pattern detector ONLY when there's
+            # meaningful audio energy (not ambient noise/silence).
+            # This prevents learning AC hum and mic hiss as "words".
             try:
                 # Update VQ utilization on acoustic word memory
                 vq_stats = self.mind.sensorimotor.vq_codebook.get_stats()
                 vq_util = vq_stats.get('codebook_utilization', 0.05)
                 self.mind.acoustic_word_memory.set_vq_utilization(vq_util)
 
-                discoveries = self._pattern_detector.observe(vq_tokens)
-                for name, pattern_tokens in discoveries:
-                    # Auto-store discovered acoustic patterns as vocabulary!
-                    from datetime import datetime
-                    self.mind.acoustic_word_memory.store_exemplar(
-                        word=name,
-                        vq_tokens=pattern_tokens,
-                        timestamp=datetime.now().isoformat(),
-                    )
-                    self._emit(
-                        f"🔊 Discovered acoustic pattern: '{name}' ({len(pattern_tokens)} tokens, heard 5+ times)",
-                        "👶"
-                    )
-                    self.mind.neurochemistry.dopamine.spike(0.1)  # Reward for discovery
-                    self.mind.drives.curiosity_hunger.satisfy(0.15)
-                    logger.info(
-                        "[auditory] Statistical discovery: '%s' stored as vocabulary (%d tokens)",
-                        name, len(pattern_tokens),
-                    )
+                # Only discover patterns from actual sound, not ambient noise
+                if result.energy > 0.02:
+                    discoveries = self._pattern_detector.observe(vq_tokens)
+                    for name, pattern_tokens in discoveries:
+                        # Auto-store discovered acoustic patterns as vocabulary!
+                        from datetime import datetime
+                        self.mind.acoustic_word_memory.store_exemplar(
+                            word=name,
+                            vq_tokens=pattern_tokens,
+                            timestamp=datetime.now().isoformat(),
+                        )
+                        self._emit(
+                            f"🔊 Discovered acoustic pattern: '{name}' ({len(pattern_tokens)} tokens, heard 5+ times)",
+                            "👶"
+                        )
+                        self.mind.neurochemistry.dopamine.spike(0.1)  # Reward for discovery
+                        self.mind.drives.curiosity_hunger.satisfy(0.15)
+                        logger.info(
+                            "[auditory] Statistical discovery: '%s' stored as vocabulary (%d tokens)",
+                            name, len(pattern_tokens),
+                        )
             except Exception as e:
                 logger.debug("[auditory] Pattern discovery error: %s", e)
 

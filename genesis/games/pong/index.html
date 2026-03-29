@@ -514,7 +514,7 @@
     // Game state
     const state = {
         ball: { x: W/2, y: H/2, vx: 2, vy: 1.5, radius: 8, speed: 2.5 },
-        genesis: { x: 15, y: H/2 - 150, width: 12, height: 300, speed: 0, score: 0 },
+        genesis: { x: 15, y: H/2 - 50, width: 12, height: 100, speed: 0, score: 0 },
         cpu: { x: W - 27, y: H/2 - 70, width: 12, height: 140, speed: 3, score: 0 },
         rally: 0,
         maxRally: 0,
@@ -680,7 +680,7 @@
     function updateGenesis() {
         const g = state.genesis;
         const action = state.genesisAction;
-        const speed = 8;
+        const speed = 12;  // Snappier movement — easier to see learning
 
         if (action === 'UP') {
             g.y -= speed;

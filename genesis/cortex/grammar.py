@@ -97,7 +97,7 @@ class NgramLanguageModel:
             self._trigrams[key][words[i + 2]] += 1
 
         # Periodically save
-        if self._total_sentences_heard % 10 == 0:
+        if self._total_sentences_heard % 5000 == 0:
             self._save()
 
     def generate(self, max_words: int = 10, temperature: float = 1.0) -> str:

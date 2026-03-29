@@ -347,6 +347,11 @@ class PersonalityNetwork:
             'training_steps': self._training_steps,
             'total_loss': self._total_loss,
             'predictions': self._total_predictions,
+            # Architecture dimensions — critical for correct reload
+            'hidden_dim': self.network.hidden_dim,
+            'num_layers': self.network.num_layers,
+            'input_dim': self.network.gru.input_size,
+            'output_dim': self.concept_dim,
         }
         torch.save(save_data, path)
         logger.info("Personality saved (%d total experiences)", self._total_experiences)
@@ -356,20 +361,47 @@ class PersonalityNetwork:
         if path.exists():
             try:
                 checkpoint = torch.load(path, map_location='cpu', weights_only=False)
+
+                # Reconstruct network at saved dimensions if they differ
+                saved_hidden = checkpoint.get('hidden_dim', self.network.hidden_dim)
+                saved_layers = checkpoint.get('num_layers', self.network.num_layers)
+                saved_input = checkpoint.get('input_dim', self.network.gru.input_size)
+                saved_output = checkpoint.get('output_dim', self.concept_dim)
+
+                if (saved_hidden != self.network.hidden_dim or
+                        saved_layers != self.network.num_layers):
+                    logger.info(
+                        "Resizing personality to match checkpoint: hidden %d→%d, layers %d→%d",
+                        self.network.hidden_dim, saved_hidden,
+                        self.network.num_layers, saved_layers,
+                    )
+                    self.network = to_device(PersonalityGRU(
+                        input_dim=saved_input,
+                        hidden_dim=saved_hidden,
+                        output_dim=saved_output,
+                        num_layers=saved_layers,
+                    ))
+                    self.optimizer = optim.Adam(self.network.parameters(), lr=0.0005)
+
                 self.network.load_state_dict(strip_compile_prefix(checkpoint['state_dict']))
                 self._hidden_state = checkpoint.get('hidden_state', None)
+                if self._hidden_state is not None:
+                    self._hidden_state = self._hidden_state.to(DEVICE)
+                else:
+                    self._hidden_state = torch.zeros(
+                        self.network.num_layers, 1, self.network.hidden_dim, device=DEVICE
+                    )
                 self._total_experiences = checkpoint.get('experiences', 0)
                 self._training_steps = checkpoint.get('training_steps', 0)
                 self._total_loss = checkpoint.get('total_loss', 0.0)
                 self._total_predictions = checkpoint.get('predictions', 0)
-                logger.info("Personality loaded (%d prior experiences)", self._total_experiences)
+                logger.info("Personality loaded (%d prior experiences, hidden=%d, layers=%d)",
+                            self._total_experiences, self.network.hidden_dim, self.network.num_layers)
             except RuntimeError as e:
                 logger.warning(
-                    "Personality weights incompatible (network grew?) — starting fresh. "
+                    "Personality weights incompatible — starting fresh. "
                     "Error: %s", str(e)[:200]
                 )
-                # Remove stale file so it doesn't block future starts
-                path.unlink(missing_ok=True)
 
     def get_stats(self) -> dict:
         return {

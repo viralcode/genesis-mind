@@ -116,20 +116,45 @@ class SensorimotorLoop:
         Raw audio → Mel → Encoder → VQ tokens → stored in context
         → Acoustic LM trained on these tokens
         
+        CRITICAL: Every Nth call does an end-to-end training pass that
+        backprops the VQ loss through the encoder, allowing the encoder
+        to learn to USE more codebook entries over time. Without this,
+        the encoder stays frozen and only ~12/256 entries get used.
+        
         Args:
             waveform: numpy array of 16kHz mono audio
             
         Returns:
             tokens: list of discrete VQ token IDs
         """
-        # Step 1: Auditory cortex encodes to latent
-        latent = self.auditory_cortex.hear(waveform)  # (1, D, T)
+        self._total_interactions += 1
+        train_encoder = (self._total_interactions % 3 == 0)  # Train every 3rd call
 
-        # Step 2: VQ quantizes to discrete tokens
-        self.vq_codebook.train()
-        z_q, token_ids, vq_loss = self.vq_codebook(latent)  # (1, D, T), (1, T), scalar
+        if train_encoder:
+            # ═══ TRAINING PASS: encoder + VQ learn together ═══
+            self.auditory_cortex.encoder.train()
+            self.vq_codebook.train()
 
-        tokens = token_ids[0].tolist()
+            wav_tensor = torch.tensor(waveform, dtype=torch.float32)
+            mel = self.auditory_cortex.mel_filter(wav_tensor)
+            latent = self.auditory_cortex.encoder(mel.unsqueeze(0))  # (1, D, T)
+
+            z_q, token_ids, vq_loss = self.vq_codebook(latent)
+
+            # Backprop VQ loss through encoder — THIS is the critical fix
+            # It teaches the encoder to spread outputs across more codebook entries
+            self.auditory_cortex.optimizer.zero_grad()
+            vq_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.auditory_cortex.encoder.parameters(), 1.0)
+            self.auditory_cortex.optimizer.step()
+
+            tokens = token_ids[0].detach().tolist()
+        else:
+            # ═══ INFERENCE PASS: fast, no gradient ═══
+            latent = self.auditory_cortex.hear(waveform)  # (1, D, T)
+            self.vq_codebook.train()  # EMA updates still happen
+            z_q, token_ids, vq_loss = self.vq_codebook(latent)
+            tokens = token_ids[0].tolist()
 
         # Step 3: Train the Acoustic LM on these tokens
         lm_loss = self.acoustic_brain.learn_from_tokens(tokens)
@@ -142,8 +167,8 @@ class SensorimotorLoop:
         self._last_heard_tokens = tokens
 
         logger.debug(
-            "Heard %d tokens (VQ loss=%.4f, LM loss=%.4f)",
-            len(tokens), vq_loss.item(), lm_loss,
+            "Heard %d tokens (VQ loss=%.4f, LM loss=%.4f, train=%s)",
+            len(tokens), vq_loss.item(), lm_loss, train_encoder,
         )
 
         return tokens

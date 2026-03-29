@@ -57,7 +57,7 @@ class Ears:
     """
 
     def __init__(self, sample_rate: int = 16000, chunk_duration_sec: float = 3.0,
-                 silence_threshold: float = 0.001, auditory_cortex=None,
+                 silence_threshold: float = 0.01, auditory_cortex=None,
                  **kwargs):  # Accept and ignore whisper_model_name for compat
         self.sample_rate = sample_rate
         self.chunk_duration_sec = chunk_duration_sec

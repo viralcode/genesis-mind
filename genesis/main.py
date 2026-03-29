@@ -35,6 +35,8 @@ from genesis.cortex.associations import AssociationEngine
 from genesis.cortex.emotions import EmotionsEngine
 from genesis.cortex.curiosity import CuriosityEngine
 from genesis.cortex.grammar import GrammarEngine
+from genesis.cortex.llm import LLMEngine
+from genesis.neural.phoneme_embedder import PhonemeEmbedder
 from genesis.cortex.perception_loop import PerceptionLoop, Perception, PerceptionType
 from genesis.growth.development import DevelopmentTracker
 from genesis.growth.sleep import SleepCycle
@@ -98,7 +100,13 @@ class GenesisMind:
         self.reasoning = ReasoningEngine(
             storage_path=GENESIS_HOME / "neural_weights" / "reasoner.pt",
         )
+        self.llm_engine = LLMEngine(model_name="phi3")
+        self.phoneme_embedder = PhonemeEmbedder(
+            output_dim=64,
+            storage_path=GENESIS_HOME / "neural_weights" / "phoneme_embedder.pt",
+        )
         self.associations = AssociationEngine()
+        self.associations.set_phoneme_embedder(self.phoneme_embedder)
         self.emotions = EmotionsEngine()
 
         # --- V2: Curiosity Engine ---
@@ -523,46 +531,56 @@ class GenesisMind:
 
         narrative = self.episodic_memory.get_narrative(n=3)
 
-        # V8: Neural reasoning — no LLM, use attention-based pattern matching
-        context_vec = self.consciousness.get_state_vector() if hasattr(self, 'consciousness') else None
-        
-        # Get memory embeddings for the neural reasoner
-        memory_embeddings = []
-        for mem in recalled:
-            if mem.get("embedding"):
-                memory_embeddings.append(np.array(mem["embedding"], dtype=np.float32))
-
-        # Text embedding for the question
-        text_emb_arr = np.array(text_emb, dtype=np.float32)
-        
-        thought = self.reasoning.think(
-            auditory_embedding=text_emb_arr,
-            context_vector=context_vec,
-            memory_embeddings=memory_embeddings if memory_embeddings else None,
-            phase=self.development.current_phase,
-        )
-
-        # Decode thought vector through ResponseDecoder
-        if thought.raw_embedding is not None:
-            decoded = self.subconscious.decode_response(
-                thought.raw_embedding, self.semantic_memory
-            )
-            if decoded:
-                thought.content = decoded
-
-        # V7: Use neural babbling for response if no concepts decoded
-        if not thought.content:
-            response = self.grammar.generate_response(
-                context=question,
-                reasoning_engine=self.reasoning,
-                phase=self.development.current_phase,
-                phase_name=self.development.current_phase_name,
+        if self.grammar.mode == "llm":
+            thought = self.llm_engine.think(
+                question=question,
                 memories=memories,
-                babbling_engine=self.babbling_engine,
-                joint_attention=self.joint_attention,
+                identity=self.axioms.get_identity_statement(),
+                moral_context=self.axioms.get_moral_context(),
+                phase_name=self.development.current_phase_name,
             )
-        else:
             response = thought.content
+        else:
+            # V8: Neural reasoning — no LLM, use attention-based pattern matching
+            context_vec = self.consciousness.get_state_vector() if hasattr(self, 'consciousness') else None
+            
+            # Get memory embeddings for the neural reasoner
+            memory_embeddings = []
+            for mem in recalled:
+                if mem.get("embedding"):
+                    memory_embeddings.append(np.array(mem["embedding"], dtype=np.float32))
+
+            # Text embedding for the question
+            text_emb_arr = np.array(text_emb, dtype=np.float32)
+            
+            thought = self.reasoning.think(
+                auditory_embedding=text_emb_arr,
+                context_vector=context_vec,
+                memory_embeddings=memory_embeddings if memory_embeddings else None,
+                phase=self.development.current_phase,
+            )
+
+            # Decode thought vector through ResponseDecoder
+            if thought.raw_embedding is not None:
+                decoded = self.subconscious.decode_response(
+                    thought.raw_embedding, self.semantic_memory
+                )
+                if decoded:
+                    thought.content = decoded
+
+            # V7: Use neural babbling for response if no concepts decoded
+            if not thought.content:
+                response = self.grammar.generate_response(
+                    context=question,
+                    reasoning_engine=self.reasoning,
+                    phase=self.development.current_phase,
+                    phase_name=self.development.current_phase_name,
+                    memories=memories,
+                    babbling_engine=self.babbling_engine,
+                    joint_attention=self.joint_attention,
+                )
+            else:
+                response = thought.content
 
         # V7: Generate neural audio response through acoustic pipeline
         try:
